@@ -1,0 +1,79 @@
+# Pod ebms-send-in-6b5dfbf49c-c4gbl, container ebms-send-in
+# OTEL_NODE_IP from field path status.hostIP
+# OTEL_POD_IP from field path status.podIP
+# AIVEN_SECRET_UPDATED from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key AIVEN_SECRET_UPDATED
+# AIVEN_CA from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key AIVEN_CA
+# KAFKA_CERTIFICATE from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_CERTIFICATE
+# KAFKA_PRIVATE_KEY from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_PRIVATE_KEY
+# KAFKA_BROKERS from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_BROKERS
+# KAFKA_SCHEMA_REGISTRY from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_SCHEMA_REGISTRY
+# KAFKA_SCHEMA_REGISTRY_USER from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_SCHEMA_REGISTRY_USER
+# KAFKA_SCHEMA_REGISTRY_PASSWORD from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_SCHEMA_REGISTRY_PASSWORD
+# KAFKA_CA from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_CA
+# KAFKA_CREDSTORE_PASSWORD from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_CREDSTORE_PASSWORD
+KAFKA_CERTIFICATE_PATH=/var/run/secrets/nais.io/kafka/kafka.crt
+KAFKA_PRIVATE_KEY_PATH=/var/run/secrets/nais.io/kafka/kafka.key
+KAFKA_CA_PATH=/var/run/secrets/nais.io/kafka/ca.crt
+KAFKA_KEYSTORE_PATH=/var/run/secrets/nais.io/kafka/client.keystore.p12
+KAFKA_TRUSTSTORE_PATH=/var/run/secrets/nais.io/kafka/client.truststore.jks
+NAV_TRUSTSTORE_PATH=/etc/ssl/certs/java/cacerts
+NAV_TRUSTSTORE_PASSWORD=changeme
+NODE_EXTRA_CA_CERTS=/etc/pki/tls/certs/ca-bundle.crt
+HTTP_PROXY=http://webproxy.nais:8088
+http_proxy=http://webproxy.nais:8088
+HTTPS_PROXY=http://webproxy.nais:8088
+https_proxy=http://webproxy.nais:8088
+NO_PROXY=localhost,127.0.0.1,10.254.0.1,.local,.adeo.no,.nav.no,.aetat.no,.devillo.no,.oera.no,.nais.io,.aivencloud.com,.intern.dev.nav.no,.nais-system
+no_proxy=localhost,127.0.0.1,10.254.0.1,.local,.adeo.no,.nav.no,.aetat.no,.devillo.no,.oera.no,.nais.io,.aivencloud.com,.intern.dev.nav.no,.nais-system
+JAVA_PROXY_OPTIONS=-Dhttp.proxyHost=webproxy.nais -Dhttps.proxyHost=webproxy.nais -Dhttp.proxyPort=8088 -Dhttps.proxyPort=8088 -Dhttp.nonProxyHosts=localhost|127.0.0.1|10.254.0.1|*.local|*.adeo.no|*.nav.no|*.aetat.no|*.devillo.no|*.oera.no|*.nais.io|*.aivencloud.com|*.intern.dev.nav.no|*.nais-system
+NAIS_APP_NAME=ebms-send-in
+NAIS_NAMESPACE=team-emottak
+NAIS_APP_IMAGE=europe-north1-docker.pkg.dev/nais-management-233d/team-emottak/send-in-send-out-ebms-send-in:2025.07.30-12.44-5d3e0f3
+NAIS_CLUSTER_NAME=dev-fss
+NAIS_CLIENT_ID=dev-fss:team-emottak:ebms-send-in
+# NAIS_POD_NAME from field path metadata.name
+LOG4J_FORMAT_MSG_NO_LOOKUPS=true
+PORT=8080
+BIND_ADDRESS=0.0.0.0:8080
+GOOGLE_CLOUD_PROJECT=team-emottak-dev-1c78
+GCP_TEAM_PROJECT_ID=team-emottak-dev-1c78
+FRIKORT_URL=https://wasapp-q1.adeo.no/nav-frikort/tjenestereksterne
+PASIENTLISTE_URL=https://wasapp-q1.adeo.no/nav-emottak-practitioner-web/remoting/httpreqhandler-practitioner
+EMOTTAK_LOGGING_LEVEL=DEBUG
+SERVICEUSER_SECRET_PATH=/secret/serviceuser
+OTEL_SERVICE_NAME=ebms-send-in
+OTEL_EXPORTER_OTLP_ENDPOINT=http://opentelemetry-collector.nais-system:4317
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_EXPORTER_OTLP_INSECURE=true
+NAIS_TOKEN_ENDPOINT=http://127.0.0.1:7164/api/v1/token
+NAIS_TOKEN_EXCHANGE_ENDPOINT=http://127.0.0.1:7164/api/v1/token/exchange
+NAIS_TOKEN_INTROSPECTION_ENDPOINT=http://127.0.0.1:7164/api/v1/introspect
+OTEL_LOGS_EXPORTER=none
+OTEL_JAVAAGENT_LOGGING=none
+JAVA_TOOL_OPTIONS= -javaagent:/otel-auto-instrumentation-java-ebms-send-in/javaagent.jar
+# OTEL_RESOURCE_ATTRIBUTES_POD_NAME from field path metadata.name
+# OTEL_RESOURCE_ATTRIBUTES_NODE_NAME from field path spec.nodeName
+OTEL_PROPAGATORS=tracecontext,baggage
+OTEL_TRACES_SAMPLER=parentbased_always_on
+OTEL_RESOURCE_ATTRIBUTES=service.name=ebms-send-in,service.namespace=team-emottak,nais.backend=elastic-apm;grafana-lgtm,k8s.container.name=ebms-send-in,k8s.deployment.name=ebms-send-in,k8s.namespace.name=team-emottak,k8s.node.name=$(OTEL_RESOURCE_ATTRIBUTES_NODE_NAME),k8s.pod.name=$(OTEL_RESOURCE_ATTRIBUTES_POD_NAME),k8s.replicaset.name=ebms-send-in-6b5dfbf49c,service.instance.id=team-emottak.$(OTEL_RESOURCE_ATTRIBUTES_POD_NAME).ebms-send-in,service.version=2025.07.30-12.44-5d3e0f3
+# Pod ebms-send-in-6b5dfbf49c-c4gbl, container vks-init
+VAULT_AUTH_METHOD=kubernetes
+VAULT_SIDEKICK_ROLE=ebms-send-in
+VAULT_K8S_LOGIN_PATH=auth/kubernetes/preprod/fss/login
+# Pod ebms-send-in-6b5dfbf49c-c4gbl, container texas
+HTTP_PROXY=http://webproxy.nais:8088
+http_proxy=http://webproxy.nais:8088
+HTTPS_PROXY=http://webproxy.nais:8088
+https_proxy=http://webproxy.nais:8088
+NO_PROXY=localhost,127.0.0.1,10.254.0.1,.local,.adeo.no,.nav.no,.aetat.no,.devillo.no,.oera.no,.nais.io,.aivencloud.com,.intern.dev.nav.no,.nais-system
+no_proxy=localhost,127.0.0.1,10.254.0.1,.local,.adeo.no,.nav.no,.aetat.no,.devillo.no,.oera.no,.nais.io,.aivencloud.com,.intern.dev.nav.no,.nais-system
+JAVA_PROXY_OPTIONS=-Dhttp.proxyHost=webproxy.nais -Dhttps.proxyHost=webproxy.nais -Dhttp.proxyPort=8088 -Dhttps.proxyPort=8088 -Dhttp.nonProxyHosts=localhost|127.0.0.1|10.254.0.1|*.local|*.adeo.no|*.nav.no|*.aetat.no|*.devillo.no|*.oera.no|*.nais.io|*.aivencloud.com|*.intern.dev.nav.no|*.nais-system
+BIND_ADDRESS=127.0.0.1:7164
+# NAIS_POD_NAME from field path metadata.name
+AZURE_ENABLED=true
+OTEL_SERVICE_NAME=texas
+OTEL_RESOURCE_ATTRIBUTES=service.name=texas,service.namespace=team-emottak,downstream.app.name=ebms-send-in,downstream.app.namespace=team-emottak,downstream.cluster.name=dev-fss,nais.pod.name=$(NAIS_POD_NAME)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://opentelemetry-collector.nais-system:4317
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_EXPORTER_OTLP_INSECURE=true
+# Pod ebms-send-in-6b5dfbf49c-c4gbl, container opentelemetry-auto-instrumentation-java
