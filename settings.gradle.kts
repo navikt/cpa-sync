@@ -22,7 +22,6 @@ dependencyResolutionManagement {
             version("jsch", "0.2.16")
             version("cxf", "3.6.6")
             version("hoplite", "2.8.2")
-            version("kotlin-kafka", "0.4.1")
             version("sqldelight", "2.0.2")
             version("postgres", "42.7.4")
             version("vault-jdbc", "1.3.10")
@@ -44,8 +43,6 @@ dependencyResolutionManagement {
             library("hoplite-hocon", "com.sksamuel.hoplite", "hoplite-hocon").versionRef("hoplite")
 
             library("jsch", "com.github.mwiede", "jsch").versionRef("jsch")
-
-            library("kotlin-kafka", "io.github.nomisrev", "kotlin-kafka").versionRef("kotlin-kafka")
 
             library("ktor-server-core", "io.ktor", "ktor-server-core").versionRef("ktor")
             library("ktor-server-core-jvm", "io.ktor", "ktor-server-core-jvm").versionRef("ktor")
@@ -132,12 +129,10 @@ dependencyResolutionManagement {
             library("kotest-runner-junit5", "io.kotest", "kotest-runner-junit5").versionRef("kotest")
             library("kotest-framework-datatest", "io.kotest", "kotest-framework-datatest").versionRef("kotest")
             library("kotest-extensions-testcontainers", "io.kotest.extensions", "kotest-extensions-testcontainers").versionRef("kotest-extensions")
-            library("kotest-extensions-testcontainers-kafka", "io.kotest.extensions", "kotest-extensions-testcontainers-kafka").versionRef("kotest-extensions")
 
             library("kotest-assertions-arrow", "io.kotest.extensions", "kotest-assertions-arrow").versionRef("arrow")
 
             library("testcontainers", "org.testcontainers", "testcontainers").versionRef("testcontainers")
-            library("testcontainers-kafka", "org.testcontainers", "kafka").versionRef("testcontainers")
             library("testcontainers-postgresql", "org.testcontainers", "postgresql").versionRef("testcontainers")
 
             library("postgresql", "org.postgresql", "postgresql").versionRef("postgres")

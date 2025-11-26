@@ -3,19 +3,6 @@
 # OTEL_POD_IP from field path status.podIP
 # AIVEN_SECRET_UPDATED from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key AIVEN_SECRET_UPDATED
 # AIVEN_CA from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key AIVEN_CA
-# KAFKA_CERTIFICATE from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_CERTIFICATE
-# KAFKA_PRIVATE_KEY from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_PRIVATE_KEY
-# KAFKA_BROKERS from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_BROKERS
-# KAFKA_SCHEMA_REGISTRY from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_SCHEMA_REGISTRY
-# KAFKA_SCHEMA_REGISTRY_USER from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_SCHEMA_REGISTRY_USER
-# KAFKA_SCHEMA_REGISTRY_PASSWORD from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_SCHEMA_REGISTRY_PASSWORD
-# KAFKA_CA from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_CA
-# KAFKA_CREDSTORE_PASSWORD from secret aiven-ebms-send-in-3dd9350b-2025-31-0, key KAFKA_CREDSTORE_PASSWORD
-KAFKA_CERTIFICATE_PATH=/var/run/secrets/nais.io/kafka/kafka.crt
-KAFKA_PRIVATE_KEY_PATH=/var/run/secrets/nais.io/kafka/kafka.key
-KAFKA_CA_PATH=/var/run/secrets/nais.io/kafka/ca.crt
-KAFKA_KEYSTORE_PATH=/var/run/secrets/nais.io/kafka/client.keystore.p12
-KAFKA_TRUSTSTORE_PATH=/var/run/secrets/nais.io/kafka/client.truststore.jks
 NAV_TRUSTSTORE_PATH=/etc/ssl/certs/java/cacerts
 NAV_TRUSTSTORE_PASSWORD=changeme
 NODE_EXTRA_CA_CERTS=/etc/pki/tls/certs/ca-bundle.crt
