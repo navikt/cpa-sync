@@ -195,5 +195,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "send-in-send-out"
-include("cpa-sync")
+rootProject.name = "cpa-sync"
+// include("cpa-sync")
