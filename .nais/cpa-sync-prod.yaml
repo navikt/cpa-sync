@@ -1,7 +1,7 @@
 apiVersion: "nais.io/v1alpha1"
 kind: "Application"
 metadata:
-  name: "cpa-sync"
+  name: "ebms-t1-cpa-sync"
   namespace: "team-emottak"
   labels:
     "team": "team-emottak"
@@ -49,7 +49,7 @@ spec:
       cpu: "200m"
       memory: "1024Mi"
   ingresses:
-    - "https://cpa-sync.intern.nav.no"
+    - "https://ebms-t1-cpa-sync.intern.nav.no"
   filesFrom:
     - secret: cpa-sftp-keys
   env:

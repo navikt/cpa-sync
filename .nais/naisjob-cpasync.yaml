@@ -3,7 +3,7 @@ kind: Naisjob
 metadata:
   labels:
     team: team-emottak
-  name: cpasync
+  name: ebms-t1-cpasync
   namespace: team-emottak
 spec:
   ttlSecondsAfterFinished: 180
@@ -11,4 +11,4 @@ spec:
   schedule: "*/5 * * * *"
   command:
     - curl
-    - http://cpa-sync/cpa-sync
+    - http://ebms-t1-cpa-sync/cpa-sync
