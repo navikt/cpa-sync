@@ -27,18 +27,18 @@ jobs:
           tag: ${{ github.sha }}
           dockerfile: DockerfileCpaSyncJob # optional, default Dockerfile
           image_suffix: cpa-sync-job
-#      - name: "Naisjob CpaSync deploy DEV"
-#        uses: "nais/deploy/actions/deploy@v2"
-#        env:
-#          CLUSTER: "dev-fss"
-#          RESOURCE: ".nais/naisjob-cpasync.yaml"
-#          IMAGE: ${{ steps.docker-push.outputs.image }}
-#          TELEMETRY: ${{ steps.docker-push.outputs.telemetry }}
-#      - name: "Naisjob CpaSync deploy PROD"
-#        uses: "nais/deploy/actions/deploy@v2"
-#        if: github.event_name == 'workflow_dispatch'
-#        env:
-#          CLUSTER: "prod-fss"
-#          RESOURCE: ".nais/naisjob-cpasync.yaml"
-#          IMAGE: ${{ steps.docker-push.outputs.image }}
-#          TELEMETRY: ${{ steps.docker-push.outputs.telemetry }}
+      - name: "Naisjob CpaSync deploy DEV"
+        uses: "nais/deploy/actions/deploy@v2"
+        env:
+          CLUSTER: "dev-fss"
+          RESOURCE: ".nais/naisjob-cpasync.yaml"
+          IMAGE: ${{ steps.docker-push.outputs.image }}
+          TELEMETRY: ${{ steps.docker-push.outputs.telemetry }}
+      - name: "Naisjob CpaSync deploy PROD"
+        uses: "nais/deploy/actions/deploy@v2"
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CLUSTER: "prod-fss"
+          RESOURCE: ".nais/naisjob-cpasync.yaml"
+          IMAGE: ${{ steps.docker-push.outputs.image }}
+          TELEMETRY: ${{ steps.docker-push.outputs.telemetry }}

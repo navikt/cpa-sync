@@ -45,30 +45,30 @@ jobs:
           ORG_GRADLE_PROJECT_githubPassword: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-#      - name: Docker build and push cpa-sync
-#        uses: nais/docker-build-push@v0
-#        id: docker-push-cpa-sync
-#        with:
-#          team: team-emottak # required
-#          tag: ${{ github.sha }}
-#          dockerfile: Dockerfile # optional, default Dockerfile
-#          docker_context: cpa-sync # optional, default .
-#          image_suffix: cpa-sync
-#    outputs:
-#      image: ${{ steps.docker-push-cpa-sync.outputs.image }}
-#
-#  deploy:
-#    name: "Deploy cpa-sync to Prod"
-#    needs: "build-and-push"
-#    runs-on: "ubuntu-latest"
-#    permissions:
-#      contents: read
-#      id-token: write
-#    steps:
-#      - uses: "actions/checkout@v6"
-#      - name: "Deploy to PROD"
-#        uses: "nais/deploy/actions/deploy@v2"
-#        env:
-#          CLUSTER: "prod-fss"
-#          RESOURCE: ".nais/${{ env.NAIS_MANIFEST }}"
-#          IMAGE: ${{ needs.build-and-push.outputs.image }}
+      - name: Docker build and push cpa-sync
+        uses: nais/docker-build-push@v0
+        id: docker-push-cpa-sync
+        with:
+          team: team-emottak # required
+          tag: ${{ github.sha }}
+          dockerfile: Dockerfile # optional, default Dockerfile
+          docker_context: cpa-sync # optional, default .
+          image_suffix: cpa-sync
+    outputs:
+      image: ${{ steps.docker-push-cpa-sync.outputs.image }}
+
+  deploy:
+    name: "Deploy cpa-sync to Prod"
+    needs: "build-and-push"
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: "actions/checkout@v6"
+      - name: "Deploy to PROD"
+        uses: "nais/deploy/actions/deploy@v2"
+        env:
+          CLUSTER: "prod-fss"
+          RESOURCE: ".nais/${{ env.NAIS_MANIFEST }}"
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
