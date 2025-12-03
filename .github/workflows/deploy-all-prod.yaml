@@ -1,7 +1,0 @@
-name: "PROD: Deploy all to PROD"
-on:
-  workflow_dispatch:
-
-jobs:
-  deploy-cpa-sync:
-    uses: ./.github/workflows/cpa-sync-deploy-prod.yaml
