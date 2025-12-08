@@ -8,7 +8,7 @@ on:
       - dev
       - dev/**
     paths:
-      - cpa-sync/**
+      - src/**
       - .github/workflows/cpa-sync-deploy-dev.yaml
 
 env:
