@@ -1,7 +1,7 @@
 apiVersion: "nais.io/v1alpha1"
 kind: "Application"
 metadata:
-  name: "ebms-t1-cpa-sync"
+  name: "cpa-sync"
   namespace: "team-emottak"
   labels:
     "team": "team-emottak"
