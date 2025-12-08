@@ -102,4 +102,3 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "cpa-sync"
-//include("cpa-sync")
