@@ -10,6 +10,7 @@ on:
     paths:
       - src/**
       - .github/workflows/cpa-sync-deploy-dev.yaml
+      - .nais/cpa-sync-dev.yaml
 
 env:
   MODULE_NAME: "cpa-sync"
