@@ -52,7 +52,6 @@ jobs:
           team: team-emottak # required
           tag: ${{ github.sha }}
           dockerfile: Dockerfile # optional, default Dockerfile
-          docker_context: cpa-sync # optional, default .
           image_suffix: cpa-sync
     outputs:
       image: ${{ steps.docker-push-cpa-sync.outputs.image }}
