@@ -45,6 +45,18 @@ class NFSConnector(
 
     fun file(filename: String): InputStream = sftpChannel.get(filename)
 
+    fun rename(from: String, to: String) {
+        // Assume we just overwrite (and are allowed to) if tofile already exists
+        sftpChannel.rename(outboundCpa + "/" + from, outboundCpa + "/" + to)
+    }
+    fun createAndRemove(f: String) {
+        // Assume we just overwrite (and are allowed to) if tofile already exists
+        val outputStream = sftpChannel.put(outboundCpa + "/" + f)
+        outputStream.write("test".toByteArray())
+        outputStream.close()
+        sftpChannel.rm(outboundCpa + "/" + f)
+    }
+
     override fun close() {
         sftpChannel.disconnect()
         session.disconnect()

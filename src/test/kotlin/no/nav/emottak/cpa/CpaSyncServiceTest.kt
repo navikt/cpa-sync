@@ -24,6 +24,8 @@ import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -353,6 +355,84 @@ class CpaSyncServiceTest {
 
         assert(expectedException == resultException)
         verify { cpaSyncService.logFailure(expectedException) }
+    }
+
+    @Test
+    fun `isActivationDue works for various cases`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
+
+        val justNow = LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val fiveMinutesAgo = LocalDateTime.now().minusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val inFiveMinutes = LocalDateTime.now().plusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(true, cpaSyncService.isActivationDue(justNow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation just now")
+        assertEquals(true, cpaSyncService.isActivationDue(fiveMinutesAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation five minutes ago")
+        assertEquals(false, cpaSyncService.isActivationDue(inFiveMinutes + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in five minutes")
+
+        val oneMonthAgo = LocalDateTime.now().minusMonths(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val twoMonthsAgoToBeInterpretedAsNextYear = LocalDateTime.now().minusMonths(2).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(true, cpaSyncService.isActivationDue(oneMonthAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one month ago")
+        assertEquals(false, cpaSyncService.isActivationDue(twoMonthsAgoToBeInterpretedAsNextYear + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation two months ago / next year")
+
+        val inOneMonth = LocalDateTime.now().plusMonths(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(false, cpaSyncService.isActivationDue(inOneMonth + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in one month")
+        // Note: as documented in the service, if activation is set 10 or more months in the future, it may be regarded as passed
+        val inElevenMonths = LocalDateTime.now().plusMonths(11).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(true, cpaSyncService.isActivationDue(inElevenMonths + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in eleven months")
+
+        assertEquals(false, cpaSyncService.isActivationDue("0127080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Less than 8 chars TS")
+        assertEquals(false, cpaSyncService.isActivationDue("012708000_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "More than 8 chars TS")
+        assertEquals(false, cpaSyncService.isActivationDue("01270800-nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Not underscore at pos 9")
+        assertEquals(false, cpaSyncService.isActivationDue("01270800"), "Too short filename")
+        assertEquals(false, cpaSyncService.isActivationDue("0127080X_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Rubbish TS 1")
+        assertEquals(false, cpaSyncService.isActivationDue("X1270800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Rubbish TS 2")
+    }
+
+    @Test
+    fun `getActivatedName works for various cases`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
+
+        assertEquals("nav.60120.xml", cpaSyncService.getActivatedName("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
+        assertEquals("nav.60120.xml", cpaSyncService.getActivatedName("01230800_nav.60120_R_Zm9ybnllbHNl._R_.qrntn"), "Example case without dot")
+        assertEquals("nav.60120.xml", cpaSyncService.getActivatedName("01230800_nav.60120_"), "Example case minimal")
+        assertEquals("nav.qass.60120.xml", cpaSyncService.getActivatedName("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
+        assertEquals(null, cpaSyncService.getActivatedName("01230800_nav.60120.Zm9ybnllbHNl.qrntn"), "Missing second underscore")
+        assertEquals(null, cpaSyncService.getActivatedName("01230800_n60120._R_Zm9ybnllbHNl._R_.qrntn"), "Too short invalid ID string")
+        assertEquals(null, cpaSyncService.getActivatedName("01230800nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Missing first underscore")
+        assertEquals(null, cpaSyncService.getActivatedName("01230800nav.60120.Zm9ybnllbHNl.qrntn"), "No underscores")
+        assertEquals(null, cpaSyncService.getActivatedName("012308000_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "First underscore in pos 10 instead of 9")
+        assertEquals(null, cpaSyncService.getActivatedName("0123080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "First underscore in pos 8 instead of 9")
+    }
+
+    @Test
+    fun `activatePendingCpas works for various file names`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
+
+        val oneDayAgo = LocalDateTime.now().minusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val twoDaysAgo = LocalDateTime.now().minusDays(2).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val tomorrow = LocalDateTime.now().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+
+        val entryToBeActivated1 = mockLsEntry(oneDayAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryToBeActivated2 = mockLsEntry(twoDaysAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryNotToBeActivatedYet = mockLsEntry(tomorrow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryWithoutProperTs = mockLsEntry("nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryWithMissingDigitInTs = mockLsEntry("0123080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryWithRubbishID = mockLsEntry("01230800_nav60._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryWithoutProperSuffix = mockLsEntry("01230800_nav.60120._R_Zm9ybnllbHNl._R_", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated1, entryToBeActivated2, entryNotToBeActivatedYet, entryWithoutProperTs, entryWithMissingDigitInTs, entryWithRubbishID, entryWithoutProperSuffix)))
+
+        cpaSyncService.activatePendingCpas()
+        verify(exactly = 2) {
+            mockedNFSConnector.rename(any(), any())
+        }
+        verify {
+            mockedNFSConnector.rename(oneDayAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
+            mockedNFSConnector.rename(twoDaysAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "nav.60121.xml")
+        }
     }
 
     private fun mockCpaRepoFromMap(dbCpaMap: Map<String, String>) {
