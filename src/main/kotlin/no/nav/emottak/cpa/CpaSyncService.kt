@@ -25,7 +25,7 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
 
     suspend fun sync() {
         return runCatching {
-            activatePendingCpas()
+//            activatePendingCpas()
             val dbCpaMap = cpaRepoClient.getCPATimestamps()
             val nfsCpaMap = getNfsCpaMap()
             upsertFreshCpa(nfsCpaMap, dbCpaMap)
@@ -50,7 +50,7 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         }
     }
 
-    internal fun activatePendingCpas() {
+    fun activatePendingCpas() {
         try {
             log.info("trying to create and remove a file on SFTP")
             nfsConnector.use { connector ->

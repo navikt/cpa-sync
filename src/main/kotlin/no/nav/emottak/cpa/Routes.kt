@@ -45,6 +45,13 @@ fun Route.cpaSync(): Route = get("/cpa-sync") {
     call.respond(HttpStatusCode.Unauthorized, "Unauthorized")
 }
 
+fun Route.testActivateCpa(): Route = get("/testActivateCpa") {
+    log.info("Test Active CPA endpoint called")
+    val cpaSyncService = CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
+    cpaSyncService.activatePendingCpas()
+    call.respond(HttpStatusCode.OK, "Activate CPA called")
+}
+
 fun Route.testAzureAuthToCpaRepo(): Route = get("/testCpaRepoConnection") {
     val cpaRepoClient = getCpaRepoAuthenticatedClient()
     call.respond(
