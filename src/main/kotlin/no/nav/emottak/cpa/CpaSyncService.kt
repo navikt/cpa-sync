@@ -51,6 +51,11 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     }
 
     fun activatePendingCpas() {
+        nfsConnector.use { connector ->
+            connector.folder().asSequence()
+                .filter { entry -> isFileEntryToBeActivated(entry) }
+                .forEach { entry -> activate(connector, entry) }
+        }
         try {
             log.info("trying to create and remove a file on SFTP")
             nfsConnector.use { connector ->
@@ -59,11 +64,6 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
             log.info("successfully created and removed a file on SFTP")
         } catch (e: Exception) {
             log.info("failed to create and remove a file on SFTP", e)
-        }
-        return nfsConnector.use { connector ->
-            connector.folder().asSequence()
-                .filter { entry -> isFileEntryToBeActivated(entry) }
-                .forEach { entry -> activate(connector, entry) }
         }
     }
 
