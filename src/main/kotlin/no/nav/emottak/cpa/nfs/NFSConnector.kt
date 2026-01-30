@@ -57,10 +57,6 @@ class NFSConnector(
     fun createAndRemove(f: String) {
         val dst = outboundCpa + "/" + f
         val bis = ByteArrayInputStream("test".toByteArray())
-        var bos = ByteArrayOutputStream()
-        sftpChannel.get(dst, bos)
-        var result = bos.toByteArray()?.toString()
-        log.info("Got from $dst: $result")
         log.info("Putting to $dst")
         try {
             sftpChannel.put(bis, dst)
@@ -74,10 +70,6 @@ class NFSConnector(
                 c = c.cause
             }
         }
-        bos = ByteArrayOutputStream()
-        sftpChannel.get(dst, bos)
-        result = bos.toByteArray()?.toString()
-        log.info("Got from $dst: $result")
         log.info("Done.")
     }
 
