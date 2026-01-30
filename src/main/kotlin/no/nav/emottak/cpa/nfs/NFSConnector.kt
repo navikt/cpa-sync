@@ -8,7 +8,6 @@ import no.nav.emottak.utils.environment.getEnvVar
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.util.Vector
