@@ -47,8 +47,11 @@ fun Route.cpaSync(): Route = get("/cpa-sync") {
 
 fun Route.testActivateCpa(): Route = get("/testActivateCpa") {
     log.info("Test Active CPA endpoint called")
-    val cpaSyncService = CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
-    cpaSyncService.activatePendingCpas()
+    val connector = NFSConnector()
+    val cpaSyncService = CpaSyncService(getCpaRepoAuthenticatedClient(), connector)
+    connector.use {
+        cpaSyncService.activatePendingCpas(connector)
+    }
     call.respond(HttpStatusCode.OK, "Activate CPA called")
 }
 

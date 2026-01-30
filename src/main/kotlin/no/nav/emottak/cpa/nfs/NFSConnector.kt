@@ -7,7 +7,6 @@ import com.jcraft.jsch.UserInfo
 import no.nav.emottak.utils.environment.getEnvVar
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.util.Vector
@@ -52,24 +51,6 @@ class NFSConnector(
     fun rename(from: String, to: String) {
         // Assume we just overwrite (and are allowed to) if tofile already exists
         sftpChannel.rename(outboundCpa + "/" + from, outboundCpa + "/" + to)
-    }
-    fun createAndRemove(f: String) {
-        val dst = outboundCpa + "/" + f
-        val bis = ByteArrayInputStream("test".toByteArray())
-        log.info("Putting to $dst")
-        try {
-            sftpChannel.put(bis, dst)
-            log.info("Removing $dst")
-            sftpChannel.rm(dst)
-        } catch (e: Exception) {
-            log.error(e.toString())
-            var c = e.cause
-            while (c != null) {
-                log.error(c.toString())
-                c = c.cause
-            }
-        }
-        log.info("Done.")
     }
 
     override fun close() {

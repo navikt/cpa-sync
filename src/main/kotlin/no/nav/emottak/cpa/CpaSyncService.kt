@@ -25,46 +25,37 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
 
     suspend fun sync() {
         return runCatching {
-//            activatePendingCpas()
-            val dbCpaMap = cpaRepoClient.getCPATimestamps()
-            val nfsCpaMap = getNfsCpaMap()
-            upsertFreshCpa(nfsCpaMap, dbCpaMap)
-            deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
+            nfsConnector.use { connector ->
+                // Activate any pending CPAs, so they are included in the sync afterwards
+                activatePendingCpas(connector)
+                // Sync
+                val dbCpaMap = cpaRepoClient.getCPATimestamps()
+                val nfsCpaMap = getNfsCpaMap(connector)
+                upsertFreshCpa(nfsCpaMap, dbCpaMap)
+                deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
+            }
         }.onFailure {
             logFailure(it)
         }.getOrThrow()
     }
 
-    internal fun getNfsCpaMap(): Map<String, NfsCpa> {
-        return nfsConnector.use { connector ->
-            connector.folder().asSequence()
-                .filter { entry -> isXmlFileEntry(entry) }
-                .fold(mutableMapOf()) { accumulator, nfsCpaFile ->
-                    val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return accumulator
+    internal fun getNfsCpaMap(connector: NFSConnector): Map<String, NfsCpa> {
+        return connector.folder().asSequence()
+            .filter { entry -> isXmlFileEntry(entry) }
+            .fold(mutableMapOf<String, NfsCpa>()) { accumulator, nfsCpaFile ->
+                val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return accumulator
 
-                    val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
-                    require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
+                val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
+                require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
 
-                    accumulator
-                }
-        }
+                accumulator
+            }
     }
 
-    fun activatePendingCpas() {
-//        nfsConnector.use { connector ->
-//            connector.folder().asSequence()
-//                .filter { entry -> isFileEntryToBeActivated(entry) }
-//                .forEach { entry -> activate(connector, entry) }
-//        }
-        try {
-            log.info("trying to create and remove a file on SFTP")
-            nfsConnector.use { connector ->
-                connector.createAndRemove("test.txt")
-            }
-            log.info("successfully created and removed a file on SFTP")
-        } catch (e: Exception) {
-            log.info("failed to create and remove a file on SFTP", e)
-        }
+    fun activatePendingCpas(connector: NFSConnector) {
+        connector.folder().asSequence()
+            .filter { entry -> isFileEntryToBeActivated(entry) }
+            .forEach { entry -> activate(connector, entry) }
     }
 
     internal fun isXmlFileEntry(entry: ChannelSftp.LsEntry): Boolean {

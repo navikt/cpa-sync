@@ -19,7 +19,6 @@ import kotlinx.coroutines.runBlocking
 import no.nav.emottak.cpa.nfs.NFSConnector
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
@@ -148,7 +147,7 @@ class CpaSyncServiceTest {
         val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
 
         val exception = assertThrows<IllegalArgumentException> {
-            cpaSyncService.getNfsCpaMap()
+            cpaSyncService.getNfsCpaMap(mockNfs)
         }
 
         assertTrue(exception.message!!.contains("NFS contains duplicate CPA IDs. Aborting sync."))
@@ -407,7 +406,6 @@ class CpaSyncServiceTest {
     }
 
     @Test
-    @Disabled
     fun `activatePendingCpas works for various file names`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
         val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
@@ -427,7 +425,7 @@ class CpaSyncServiceTest {
             mockedNFSConnector.folder()
         }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated1, entryToBeActivated2, entryNotToBeActivatedYet, entryWithoutProperTs, entryWithMissingDigitInTs, entryWithRubbishID, entryWithoutProperSuffix)))
 
-        cpaSyncService.activatePendingCpas()
+        cpaSyncService.activatePendingCpas(mockedNFSConnector)
         verify(exactly = 2) {
             mockedNFSConnector.rename(any(), any())
         }
