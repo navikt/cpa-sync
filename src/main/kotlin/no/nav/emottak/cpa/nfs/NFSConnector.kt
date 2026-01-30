@@ -8,6 +8,7 @@ import no.nav.emottak.utils.environment.getEnvVar
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.util.Vector
@@ -56,10 +57,27 @@ class NFSConnector(
     fun createAndRemove(f: String) {
         val dst = outboundCpa + "/" + f
         val bis = ByteArrayInputStream("test".toByteArray())
+        var bos = ByteArrayOutputStream()
+        sftpChannel.get(dst, bos)
+        var result = bos.toByteArray()?.toString()
+        log.info("Got from $dst: $result")
         log.info("Putting to $dst")
-        sftpChannel.put(bis, dst)
-        log.info("Removing $dst")
-        sftpChannel.rm(outboundCpa + "/" + f)
+        try {
+            sftpChannel.put(bis, dst)
+            log.info("Removing $dst")
+            sftpChannel.rm(dst)
+        } catch (e: Exception) {
+            log.error(e.toString())
+            var c = e.cause
+            while (c != null) {
+                log.error(c.toString())
+                c = c.cause
+            }
+        }
+        bos = ByteArrayOutputStream()
+        sftpChannel.get(dst, bos)
+        result = bos.toByteArray()?.toString()
+        log.info("Got from $dst: $result")
         log.info("Done.")
     }
 
