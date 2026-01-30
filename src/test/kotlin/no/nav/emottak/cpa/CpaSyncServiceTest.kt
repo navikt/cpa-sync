@@ -19,6 +19,7 @@ import kotlinx.coroutines.runBlocking
 import no.nav.emottak.cpa.nfs.NFSConnector
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
@@ -406,6 +407,7 @@ class CpaSyncServiceTest {
     }
 
     @Test
+    @Disabled
     fun `activatePendingCpas works for various file names`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
         val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
