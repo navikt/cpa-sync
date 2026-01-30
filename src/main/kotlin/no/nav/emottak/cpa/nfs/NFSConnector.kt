@@ -5,6 +5,9 @@ import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.jcraft.jsch.UserInfo
 import no.nav.emottak.utils.environment.getEnvVar
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.util.Vector
@@ -27,6 +30,7 @@ class NFSConnector(
     private val session: Session
     private val sftpChannel: ChannelSftp
 
+    private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
     init {
         val knownHosts = Thread.currentThread().getContextClassLoader().getResourceAsStream("known_hosts")
         jsch.setKnownHosts(knownHosts)
@@ -50,11 +54,13 @@ class NFSConnector(
         sftpChannel.rename(outboundCpa + "/" + from, outboundCpa + "/" + to)
     }
     fun createAndRemove(f: String) {
-        // Assume we just overwrite (and are allowed to) if tofile already exists
-        val outputStream = sftpChannel.put(outboundCpa + "/" + f)
-        outputStream.write("test".toByteArray())
-        outputStream.close()
+        val dst = outboundCpa + "/" + f
+        val bis = ByteArrayInputStream("test".toByteArray())
+        log.info("Putting to $dst")
+        sftpChannel.put(bis, dst)
+        log.info("Removing $dst")
         sftpChannel.rm(outboundCpa + "/" + f)
+        log.info("Done.")
     }
 
     override fun close() {
