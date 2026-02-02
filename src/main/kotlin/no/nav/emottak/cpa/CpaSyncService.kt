@@ -10,52 +10,53 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.time.Instant
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
 
+// En CPA som skal aktiveres ligger i en fil med filnavn som slutter på angitt suffix og starter med lokal dato og tid (MMddHHmm) for aktivering
 const val QUARANTINE_SUFFIX = ".qrntn"
+val ACTIVATION_TIMEZONE = ZoneId.of("Europe/Oslo")
 
 class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConnector: NFSConnector) {
     private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
 
     suspend fun sync() {
         return runCatching {
-            nfsConnector.use { connector ->
-                // Activate any pending CPAs, so they are included in the sync afterwards
-                activatePendingCpas(connector)
-                // Sync
-                val dbCpaMap = cpaRepoClient.getCPATimestamps()
-                val nfsCpaMap = getNfsCpaMap(connector)
-                upsertFreshCpa(nfsCpaMap, dbCpaMap)
-                deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
-            }
+            val dbCpaMap = cpaRepoClient.getCPATimestamps()
+            val nfsCpaMap = getNfsCpaMap()
+            upsertFreshCpa(nfsCpaMap, dbCpaMap)
+            deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
         }.onFailure {
             logFailure(it)
         }.getOrThrow()
     }
 
-    internal fun getNfsCpaMap(connector: NFSConnector): Map<String, NfsCpa> {
-        return connector.folder().asSequence()
-            .filter { entry -> isXmlFileEntry(entry) }
-            .fold(mutableMapOf<String, NfsCpa>()) { accumulator, nfsCpaFile ->
-                val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return accumulator
+    internal fun getNfsCpaMap(): Map<String, NfsCpa> {
+        nfsConnector.use { connector ->
+            return connector.folder().asSequence()
+                .filter { entry -> isXmlFileEntry(entry) }
+                .fold(mutableMapOf<String, NfsCpa>()) { accumulator, nfsCpaFile ->
+                    val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return accumulator
 
-                val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
-                require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
+                    val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
+                    require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
 
-                accumulator
-            }
+                    accumulator
+                }
+        }
     }
 
-    fun activatePendingCpas(connector: NFSConnector) {
-        connector.folder().asSequence()
-            .filter { entry -> isFileEntryToBeActivated(entry) }
-            .forEach { entry -> activate(connector, entry) }
+    suspend fun activatePendingCpas() {
+        nfsConnector.use { connector ->
+            connector.folder().asSequence()
+                .filter { entry -> isFileEntryToBeActivated(entry) }
+                .forEach { entry -> activate(connector, entry) }
+        }
     }
 
     internal fun isXmlFileEntry(entry: ChannelSftp.LsEntry): Boolean {
@@ -84,42 +85,32 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
             // Filnavn starter ikke med 8-tegns dato og understreking
             return false
         }
-        /*
-        Denne logikken er faktisk litt fuzzy, siden man har valgt å ikke angi årstall i tidspunktet.
-        Det betyr at man må gjette/utlede hvilket år datoen hører til.
-        Antagelsen er at aktivering kjører jevnlig og at man ikke vil legge inn en dato som er mer enn 10 måneder fram i tid.
-        Det betyr at dersom man finner en aktiveringsdato som ikke hører til inneværende måned eller måneden før
-        (det siste er aktuelt når aktivering kjører rett etter månedsskifte)
-        så tolkes den som en dato i det neste året.
-         */
         try {
-            val currentMonth = LocalDateTime.now().monthValue
             val activationMonth = filename.substring(0, 2).toInt()
-            if (currentMonth != activationMonth) {
-                // Aktiveringsdato må være forrige måned, ellers tolkes den som kommende år
-                if (currentMonth == ((activationMonth + 1) % 12)) {
-                    return true
-                } else {
-                    return false
-                }
+            val activationDayOfMonth = filename.substring(2, 4).toInt()
+            val today = Instant.now().atZone(ACTIVATION_TIMEZONE).toLocalDate()
+            if (activationMonth != today.monthValue || activationDayOfMonth != today.dayOfMonth) {
+                return false
             }
-            val activationTimestampStringWithYear = LocalDateTime.now().year.toString() + filename.substring(0, 8)
-            val activationTimestamp = LocalDateTime.parse(activationTimestampStringWithYear, DateTimeFormatter.ofPattern("yyyyMMddHHmm"))
-            return !activationTimestamp.isAfter(LocalDateTime.now())
+            // Skal aktiveres idag, sjekk om tidspunktet er passert
+            val activationHour = filename.substring(4, 6).toInt()
+            val activationMinute = filename.substring(6, 8).toInt()
+            val now = Instant.now().atZone(ACTIVATION_TIMEZONE).toLocalTime().withSecond(1)
+            return !now.isBefore(LocalTime.of(activationHour, activationMinute).withSecond(0))
         } catch (e: Exception) {
             // Filnavn starter ikke med 8-tegns dato
             return false
         }
     }
 
-    internal fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry) {
+    internal suspend fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry) {
         val activatedCpaFilename = getActivatedName(entry.filename)
         if (activatedCpaFilename == null) {
             log.warn("Failed to convert ${entry.filename} to activated CPA file name")
             return
         }
         try {
-            connector.rename(entry.filename, activatedCpaFilename)
+            connector.copy(entry.filename, activatedCpaFilename)
             log.info("${entry.filename} has been activated with file name $activatedCpaFilename")
         } catch (e: Exception) {
             log.error("Failed to activate ${entry.filename}", e)

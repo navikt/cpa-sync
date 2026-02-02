@@ -147,7 +147,7 @@ class CpaSyncServiceTest {
         val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
 
         val exception = assertThrows<IllegalArgumentException> {
-            cpaSyncService.getNfsCpaMap(mockNfs)
+            cpaSyncService.getNfsCpaMap()
         }
 
         assertTrue(exception.message!!.contains("NFS contains duplicate CPA IDs. Aborting sync."))
@@ -371,14 +371,11 @@ class CpaSyncServiceTest {
 
         val oneMonthAgo = LocalDateTime.now().minusMonths(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         val twoMonthsAgoToBeInterpretedAsNextYear = LocalDateTime.now().minusMonths(2).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        assertEquals(true, cpaSyncService.isActivationDue(oneMonthAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one month ago")
+        assertEquals(false, cpaSyncService.isActivationDue(oneMonthAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one month ago")
         assertEquals(false, cpaSyncService.isActivationDue(twoMonthsAgoToBeInterpretedAsNextYear + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation two months ago / next year")
 
         val inOneMonth = LocalDateTime.now().plusMonths(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         assertEquals(false, cpaSyncService.isActivationDue(inOneMonth + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in one month")
-        // Note: as documented in the service, if activation is set 10 or more months in the future, it may be regarded as passed
-        val inElevenMonths = LocalDateTime.now().plusMonths(11).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        assertEquals(true, cpaSyncService.isActivationDue(inElevenMonths + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in eleven months")
 
         assertEquals(false, cpaSyncService.isActivationDue("0127080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Less than 8 chars TS")
         assertEquals(false, cpaSyncService.isActivationDue("012708000_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "More than 8 chars TS")
@@ -410,12 +407,13 @@ class CpaSyncServiceTest {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
         val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
 
-        val oneDayAgo = LocalDateTime.now().minusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        val twoDaysAgo = LocalDateTime.now().minusDays(2).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val oneMinuteAgo = LocalDateTime.now().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        // Note: since the service will only process today's files, activation at 1 hour ago will be ignored if you run this right after midnight
+        val oneHourAgo = LocalDateTime.now().minusHours(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         val tomorrow = LocalDateTime.now().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
 
-        val entryToBeActivated1 = mockLsEntry(oneDayAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
-        val entryToBeActivated2 = mockLsEntry(twoDaysAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryToBeActivated1 = mockLsEntry(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryToBeActivated2 = mockLsEntry(oneHourAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryNotToBeActivatedYet = mockLsEntry(tomorrow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryWithoutProperTs = mockLsEntry("nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryWithMissingDigitInTs = mockLsEntry("0123080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
@@ -425,13 +423,15 @@ class CpaSyncServiceTest {
             mockedNFSConnector.folder()
         }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated1, entryToBeActivated2, entryNotToBeActivatedYet, entryWithoutProperTs, entryWithMissingDigitInTs, entryWithRubbishID, entryWithoutProperSuffix)))
 
-        cpaSyncService.activatePendingCpas(mockedNFSConnector)
+        cpaSyncService.activatePendingCpas()
         verify(exactly = 2) {
-            mockedNFSConnector.rename(any(), any())
+            runBlocking { mockedNFSConnector.copy(any(), any()) }
         }
         verify {
-            mockedNFSConnector.rename(oneDayAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
-            mockedNFSConnector.rename(twoDaysAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "nav.60121.xml")
+            runBlocking {
+                mockedNFSConnector.copy(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
+                mockedNFSConnector.copy(oneHourAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "nav.60121.xml")
+            }
         }
     }
 

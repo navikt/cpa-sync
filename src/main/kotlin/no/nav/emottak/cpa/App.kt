@@ -34,9 +34,9 @@ fun Application.myApplicationModule() {
     routing {
         if (!isProdEnv()) {
             testAzureAuthToCpaRepo()
-            testActivateCpa()
         }
         registerHealthEndpoints(appMicrometerRegistry)
         cpaSync()
+        activateCpa()
     }
 }

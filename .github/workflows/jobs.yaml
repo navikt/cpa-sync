@@ -34,6 +34,13 @@ jobs:
           RESOURCE: ".nais/naisjob-cpasync.yaml"
           IMAGE: ${{ steps.docker-push.outputs.image }}
           TELEMETRY: ${{ steps.docker-push.outputs.telemetry }}
+      - name: "Naisjob ActivateCpa deploy DEV"
+        uses: "nais/deploy/actions/deploy@v2"
+        env:
+          CLUSTER: "dev-fss"
+          RESOURCE: ".nais/naisjob-activatecpa.yaml"
+          IMAGE: ${{ steps.docker-push.outputs.image }}
+          TELEMETRY: ${{ steps.docker-push.outputs.telemetry }}
       - name: "Naisjob CpaSync deploy PROD"
         uses: "nais/deploy/actions/deploy@v2"
         if: github.event_name == 'workflow_dispatch'
