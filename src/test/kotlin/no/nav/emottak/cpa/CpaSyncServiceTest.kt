@@ -387,6 +387,7 @@ class CpaSyncServiceTest {
     internal fun nowInActivationTimezone(): LocalDateTime {
         return LocalDateTime.now(ACTIVATION_TIMEZONE)
     }
+
     @Test
     fun `getActivatedName works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
