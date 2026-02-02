@@ -362,20 +362,19 @@ class CpaSyncServiceTest {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
         val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
 
-        val justNow = LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        val fiveMinutesAgo = LocalDateTime.now().minusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        val inFiveMinutes = LocalDateTime.now().plusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val justNow = nowInActivationTimezone().format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val fiveMinutesAgo = nowInActivationTimezone().minusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val inFiveMinutes = nowInActivationTimezone().plusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         assertEquals(true, cpaSyncService.isActivationDue(justNow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation just now")
         assertEquals(true, cpaSyncService.isActivationDue(fiveMinutesAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation five minutes ago")
         assertEquals(false, cpaSyncService.isActivationDue(inFiveMinutes + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in five minutes")
 
-        val oneMonthAgo = LocalDateTime.now().minusMonths(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        val twoMonthsAgoToBeInterpretedAsNextYear = LocalDateTime.now().minusMonths(2).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        assertEquals(false, cpaSyncService.isActivationDue(oneMonthAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one month ago")
-        assertEquals(false, cpaSyncService.isActivationDue(twoMonthsAgoToBeInterpretedAsNextYear + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation two months ago / next year")
+        // Service only processes today's activations
+        val yesterday = nowInActivationTimezone().minusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(false, cpaSyncService.isActivationDue(yesterday + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one month ago")
 
-        val inOneMonth = LocalDateTime.now().plusMonths(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        assertEquals(false, cpaSyncService.isActivationDue(inOneMonth + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in one month")
+        val tomorrow = nowInActivationTimezone().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(false, cpaSyncService.isActivationDue(tomorrow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in one month")
 
         assertEquals(false, cpaSyncService.isActivationDue("0127080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Less than 8 chars TS")
         assertEquals(false, cpaSyncService.isActivationDue("012708000_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "More than 8 chars TS")
@@ -385,6 +384,9 @@ class CpaSyncServiceTest {
         assertEquals(false, cpaSyncService.isActivationDue("X1270800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Rubbish TS 2")
     }
 
+    internal fun nowInActivationTimezone(): LocalDateTime {
+        return LocalDateTime.now(ACTIVATION_TIMEZONE)
+    }
     @Test
     fun `getActivatedName works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
@@ -407,10 +409,10 @@ class CpaSyncServiceTest {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
         val cpaSyncService = spyk(CpaSyncService(mockCpaRepoClient, mockedNFSConnector))
 
-        val oneMinuteAgo = LocalDateTime.now().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         // Note: since the service will only process today's files, activation at 1 hour ago will be ignored if you run this right after midnight
-        val oneHourAgo = LocalDateTime.now().minusHours(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        val tomorrow = LocalDateTime.now().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val oneHourAgo = nowInActivationTimezone().minusHours(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val tomorrow = nowInActivationTimezone().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
 
         val entryToBeActivated1 = mockLsEntry(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryToBeActivated2 = mockLsEntry(oneHourAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
