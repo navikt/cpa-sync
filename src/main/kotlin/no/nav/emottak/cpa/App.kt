@@ -13,15 +13,17 @@ import io.ktor.server.routing.routing
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.utils.environment.getEnvVar
 import no.nav.emottak.utils.environment.isProdEnv
 import org.slf4j.LoggerFactory
 import kotlin.concurrent.timer
 
+@OptIn(DelicateCoroutinesApi::class)
 fun main() {
     // if (getEnvVar("NAIS_CLUSTER_NAME", "local") != "prod-fss") {
     DecoroutinatorRuntime.load()
@@ -31,18 +33,16 @@ fun main() {
     val activateCpaIntervalSeconds = getEnvVar("ACTIVATE_CPA_INTERVAL_SECONDS", "3600").toLong()
     val syncCpaIntervalSeconds = getEnvVar("SYNC_CPA_INTERVAL_SECONDS", "300").toLong()
 
-    runBlocking {
-        launchActivateCpa(
-            5,
-            activateCpaIntervalSeconds,
-            cpaRepoClient
-        )
-        launchSyncCpa(
-            5,
-            syncCpaIntervalSeconds,
-            cpaRepoClient
-        )
-    }
+    GlobalScope.launchActivateCpa(
+        5,
+        activateCpaIntervalSeconds,
+        cpaRepoClient
+    )
+    GlobalScope.launchSyncCpa(
+        5,
+        syncCpaIntervalSeconds,
+        cpaRepoClient
+    )
 
     embeddedServer(Netty, port = 8080, module = Application::myApplicationModule).start(wait = true)
 }
