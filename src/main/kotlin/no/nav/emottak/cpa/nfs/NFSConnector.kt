@@ -5,8 +5,6 @@ import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import com.jcraft.jsch.UserInfo
 import no.nav.emottak.utils.environment.getEnvVar
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.InputStream
 import java.util.Vector
@@ -29,7 +27,6 @@ class NFSConnector(
     private val session: Session
     private val sftpChannel: ChannelSftp
 
-    private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
     init {
         val knownHosts = Thread.currentThread().getContextClassLoader().getResourceAsStream("known_hosts")
         jsch.setKnownHosts(knownHosts)
