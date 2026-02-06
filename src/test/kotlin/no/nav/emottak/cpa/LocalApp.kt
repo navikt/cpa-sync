@@ -18,6 +18,8 @@ import java.io.InputStream
 import java.time.Instant
 import java.util.Vector
 import kotlin.concurrent.timer
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 val dummyNfsEntries = HashMap<String, ChannelSftp.LsEntry>()
 val dummyCpaRepoEntries = HashMap<String, String>()
@@ -42,7 +44,7 @@ fun main() {
     }
     val nfsConnector: NFSConnector = mockNfs()
 
-    val interval = 60L
+    val interval = 60.seconds
     log.info("----- Setting up CPA activation task, with interval $interval seconds")
     GlobalScope.launchActivateCpaWithConnector(
         interval,
@@ -50,7 +52,7 @@ fun main() {
         nfsConnector
     )
 
-    val syncInterval = 40L
+    val syncInterval = 40.seconds
     log.info("----- Setting up CPA sync task, with interval $syncInterval seconds")
     GlobalScope.launchSyncCpaWithConnector(
         syncInterval,
@@ -63,14 +65,14 @@ fun main() {
 }
 
 fun CoroutineScope.launchActivateCpaWithConnector(
-    processIntervalSeconds: Long,
+    processInterval: Duration,
     cpaRepoClient: HttpClient,
     nfsConnector: NFSConnector
 ) {
     timer(
         name = "Activate CPA Timer",
         initialDelay = 3000L,
-        period = processIntervalSeconds * 1000,
+        period = processInterval.inWholeMilliseconds,
         daemon = true
     ) {
         launch(Dispatchers.IO) {
@@ -86,14 +88,14 @@ fun CoroutineScope.launchActivateCpaWithConnector(
 }
 
 fun CoroutineScope.launchSyncCpaWithConnector(
-    processIntervalSeconds: Long,
+    processInterval: Duration,
     cpaRepoClient: HttpClient,
     nfsConnector: NFSConnector
 ) {
     timer(
         name = "Sync CPA Timer",
         initialDelay = 4000L,
-        period = processIntervalSeconds * 1000,
+        period = processInterval.inWholeMilliseconds,
         daemon = true
     ) {
         launch(Dispatchers.IO) {

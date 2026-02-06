@@ -22,6 +22,8 @@ import no.nav.emottak.utils.environment.getEnvVar
 import no.nav.emottak.utils.environment.isProdEnv
 import org.slf4j.LoggerFactory
 import kotlin.concurrent.timer
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(DelicateCoroutinesApi::class)
 fun main() {
@@ -30,17 +32,17 @@ fun main() {
     // }
 
     val cpaRepoClient = getCpaRepoAuthenticatedClient()
-    val activateCpaIntervalSeconds = getEnvVar("ACTIVATE_CPA_INTERVAL_SECONDS", "3600").toLong()
-    val syncCpaIntervalSeconds = getEnvVar("SYNC_CPA_INTERVAL_SECONDS", "300").toLong()
+    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
+    val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))
 
     GlobalScope.launchActivateCpa(
-        5,
-        activateCpaIntervalSeconds,
+        5.seconds,
+        activateCpaInterval,
         cpaRepoClient
     )
     GlobalScope.launchSyncCpa(
-        5,
-        syncCpaIntervalSeconds,
+        5.seconds,
+        syncCpaInterval,
         cpaRepoClient
     )
 
@@ -68,14 +70,14 @@ fun Application.myApplicationModule() {
 }
 
 fun CoroutineScope.launchSyncCpa(
-    startupDelaySeconds: Long,
-    processIntervalSeconds: Long,
+    startupDelay: Duration,
+    processInterval: Duration,
     cpaRepoClient: HttpClient
 ) {
     timer(
         name = "Sync CPA Timer",
-        initialDelay = startupDelaySeconds * 1000,
-        period = processIntervalSeconds * 1000,
+        initialDelay = startupDelay.inWholeMilliseconds,
+        period = processInterval.inWholeMilliseconds,
         daemon = true
     ) {
         launch(Dispatchers.IO) {
@@ -92,14 +94,14 @@ fun CoroutineScope.launchSyncCpa(
 }
 
 fun CoroutineScope.launchActivateCpa(
-    startupDelaySeconds: Long,
-    processIntervalSeconds: Long,
+    startupDelay: Duration,
+    processInterval: Duration,
     cpaRepoClient: HttpClient
 ) {
     timer(
         name = "Activate CPA Timer",
-        initialDelay = startupDelaySeconds * 1000,
-        period = processIntervalSeconds * 1000,
+        initialDelay = startupDelay.inWholeMilliseconds,
+        period = processInterval.inWholeMilliseconds,
         daemon = true
     ) {
         launch(Dispatchers.IO) {
