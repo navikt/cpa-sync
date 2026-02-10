@@ -45,11 +45,13 @@ fun main() {
     )
     val cpaArchiveRepository = configureCpaArchiveRepository(dbConfig)
 
-    GlobalScope.launchActivateCpa(
-        5.seconds,
-        activateCpaInterval,
-        cpaArchiveRepository
-    )
+    if (cpaArchiveRepository != null) {
+        GlobalScope.launchActivateCpa(
+            5.seconds,
+            activateCpaInterval,
+            cpaArchiveRepository
+        )
+    }
     GlobalScope.launchSyncCpa(
         5.seconds,
         syncCpaInterval,
@@ -61,7 +63,7 @@ fun main() {
 
 internal val log = LoggerFactory.getLogger("no.nav.emottak.cpa")
 
-fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application.() -> Unit {
+fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository?): Application.() -> Unit {
     return {
         install(ContentNegotiation) {
             json()
@@ -73,11 +75,11 @@ fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application
         routing {
             if (!isProdEnv()) {
                 testAzureAuthToCpaRepo()
-                testDbRead(cpaArchiveRepository)
+                if (cpaArchiveRepository != null) testDbRead(cpaArchiveRepository)
             }
             registerHealthEndpoints(appMicrometerRegistry)
             cpaSync()
-            activateCpa(cpaArchiveRepository)
+            if (cpaArchiveRepository != null) activateCpa(cpaArchiveRepository)
         }
     }
 }
