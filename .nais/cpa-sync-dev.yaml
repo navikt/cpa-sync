@@ -52,8 +52,16 @@ spec:
     - "https://cpa-sync.intern.dev.nav.no"
   filesFrom:
     - secret: cpa-sftp-keys
+  vault:
+    enabled: true
+    paths:
+    - format: json
+      kvPath: /oracle/dev/creds/emottak_q1-nmt3
+      mountPath: /var/run/secrets/nais.io/dbcreds
   env:
     - name: NFS_HOST
       value: b27drvl011.preprod.local
     - name: EMOTTAK_LOGGING_LEVEL
       value: DEBUG
+    - name: EMOTTAK_JDBC_URL
+      value: jdbc:oracle:thin:@//dmv06-scan.adeo.no:1521/EMOTTAK_Q1_HA

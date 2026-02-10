@@ -2,7 +2,6 @@ package no.nav.emottak.cpa
 
 import com.jcraft.jsch.ChannelSftp
 import io.ktor.client.HttpClient
-import io.ktor.server.application.Application
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.mockk.coEvery
@@ -14,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import no.nav.emottak.cpa.nfs.NFSConnector
+import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import java.io.InputStream
 import java.time.Instant
 import java.util.Vector
@@ -44,12 +44,14 @@ fun main() {
     }
     val nfsConnector: NFSConnector = mockNfs()
 
+    val cpaArchiveRepository: CpaArchiveRepository = mockk(relaxed = true)
+
     val interval = 60.seconds
     log.info("----- Setting up CPA activation task, with interval $interval seconds")
     GlobalScope.launchActivateCpaWithConnector(
         interval,
-        cpaRepoClient,
-        nfsConnector
+        nfsConnector,
+        cpaArchiveRepository
     )
 
     val syncInterval = 40.seconds
@@ -61,13 +63,13 @@ fun main() {
     )
 
     log.info("----- Starting embedded server at port 8080")
-    embeddedServer(Netty, port = 8080, module = Application::myApplicationModule).start(wait = true)
+    embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository)).start(wait = true)
 }
 
 fun CoroutineScope.launchActivateCpaWithConnector(
     processInterval: Duration,
-    cpaRepoClient: HttpClient,
-    nfsConnector: NFSConnector
+    nfsConnector: NFSConnector,
+    cpaArchiveRepository: CpaArchiveRepository
 ) {
     timer(
         name = "Activate CPA Timer",
@@ -78,8 +80,8 @@ fun CoroutineScope.launchActivateCpaWithConnector(
         launch(Dispatchers.IO) {
             log.info("----- Running CPA activate")
             try {
-                val cpaSyncService = CpaSyncService(cpaRepoClient, nfsConnector)
-                cpaSyncService.activatePendingCpas()
+                val cpaActivateService = CpaActivateService(nfsConnector, cpaArchiveRepository)
+                cpaActivateService.activatePendingCpas()
             } catch (e: Exception) {
                 log.error("Failed to activate CPA", e)
             }

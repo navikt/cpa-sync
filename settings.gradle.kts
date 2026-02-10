@@ -12,6 +12,7 @@ dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
             version("ktor", "3.1.3")
+            version("exposed", "0.47.0")
             version("token-validation-ktor", "5.0.15")
             version("eclipse-angus", "2.0.2")
             version("jsch", "0.2.16")
@@ -24,6 +25,7 @@ dependencyResolutionManagement {
             library("ktor-serialization-kotlinx-json", "io.ktor", "ktor-serialization-kotlinx-json").versionRef("ktor")
             library("ktor-client-core", "io.ktor", "ktor-client-core").versionRef("ktor")
             library("ktor-client-cio", "io.ktor", "ktor-client-cio").versionRef("ktor")
+            library("exposed-jdbc", "org.jetbrains.exposed", "exposed-jdbc").versionRef("exposed")
             library("jsch", "com.github.mwiede", "jsch").versionRef("jsch")
             library("ktor-client-auth", "io.ktor", "ktor-client-auth").versionRef("ktor")
 
@@ -36,7 +38,10 @@ dependencyResolutionManagement {
             library("emottak-utils", "no.nav.emottak", "emottak-utils").versionRef("emottak-utils")
             library("ktor-server-auth-jvm", "io.ktor", "ktor-server-auth-jvm").versionRef("ktor")
             library("token-validation-ktor-v3", "no.nav.security", "token-validation-ktor-v3").versionRef("token-validation-ktor")
+            library("hikari", "com.zaxxer:HikariCP:5.0.1")
+            library("oracle", "com.oracle.database.jdbc:ojdbc8:23.26.1.0.0")
 
+            bundle("exposed", listOf("exposed-jdbc"))
             bundle("prometheus", listOf("ktor-server-metrics-micrometer", "micrometer-registry-prometheus"))
             bundle("logging", listOf("logback-classic", "logback-logstash"))
         }

@@ -18,6 +18,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import no.nav.emottak.cpa.nfs.NFSConnector
+import no.nav.emottak.cpa.persistence.CpaArchiveRepository
+import no.nav.emottak.cpa.persistence.DatabaseConfig
+import no.nav.emottak.cpa.persistence.configureCpaArchiveRepository
 import no.nav.emottak.utils.environment.getEnvVar
 import no.nav.emottak.utils.environment.isProdEnv
 import org.slf4j.LoggerFactory
@@ -35,10 +38,16 @@ fun main() {
     val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
     val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))
 
+    val dbConfig = DatabaseConfig(
+        jdbcUrl = getEnvVar("EMOTTAK_JDBC_URL"),
+        vaultMountPath = "/var/run/secrets/nais.io/dbcreds"
+    )
+    val cpaArchiveRepository = configureCpaArchiveRepository(dbConfig)
+
     GlobalScope.launchActivateCpa(
         5.seconds,
         activateCpaInterval,
-        cpaRepoClient
+        cpaArchiveRepository
     )
     GlobalScope.launchSyncCpa(
         5.seconds,
@@ -46,26 +55,29 @@ fun main() {
         cpaRepoClient
     )
 
-    embeddedServer(Netty, port = 8080, module = Application::myApplicationModule).start(wait = true)
+    embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository)).start(wait = true)
 }
 
 internal val log = LoggerFactory.getLogger("no.nav.emottak.cpa")
 
-fun Application.myApplicationModule() {
-    install(ContentNegotiation) {
-        json()
-    }
-    val appMicrometerRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
-    install(MicrometerMetrics) {
-        registry = appMicrometerRegistry
-    }
-    routing {
-        if (!isProdEnv()) {
-            testAzureAuthToCpaRepo()
+fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application.() -> Unit {
+    return {
+        install(ContentNegotiation) {
+            json()
         }
-        registerHealthEndpoints(appMicrometerRegistry)
-        cpaSync()
-        activateCpa()
+        val appMicrometerRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+        install(MicrometerMetrics) {
+            registry = appMicrometerRegistry
+        }
+        routing {
+            if (!isProdEnv()) {
+                testAzureAuthToCpaRepo()
+                testDbRead(cpaArchiveRepository)
+            }
+            registerHealthEndpoints(appMicrometerRegistry)
+            cpaSync()
+            activateCpa(cpaArchiveRepository)
+        }
     }
 }
 
@@ -96,7 +108,7 @@ fun CoroutineScope.launchSyncCpa(
 fun CoroutineScope.launchActivateCpa(
     startupDelay: Duration,
     processInterval: Duration,
-    cpaRepoClient: HttpClient
+    cpaArchiveRepository: CpaArchiveRepository
 ) {
     timer(
         name = "Activate CPA Timer",
@@ -107,8 +119,8 @@ fun CoroutineScope.launchActivateCpa(
         launch(Dispatchers.IO) {
             log.info("----- Running task: Activate CPA")
             try {
-                val cpaSyncService = CpaSyncService(cpaRepoClient, NFSConnector())
-                cpaSyncService.activatePendingCpas()
+                val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+                cpaActivateService.activatePendingCpas()
                 log.info("----- Done: Activate CPA")
             } catch (e: Exception) {
                 log.error("Failed task: Activate CPA", e)

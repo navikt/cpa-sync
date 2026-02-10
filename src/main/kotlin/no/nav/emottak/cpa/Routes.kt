@@ -14,10 +14,11 @@ import io.micrometer.prometheus.PrometheusMeterRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import no.nav.emottak.cpa.nfs.NFSConnector
+import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.slf4j.LoggerFactory
 
 fun Route.cpaSync(): Route = get("/cpa-sync") {
-    val log = LoggerFactory.getLogger("no.nav.emottak.smtp.sftp")
+    val log = LoggerFactory.getLogger("no.nav.emottak.cpa.sync")
     val cpaSyncService = CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
 
     withContext(Dispatchers.IO) {
@@ -45,12 +46,12 @@ fun Route.cpaSync(): Route = get("/cpa-sync") {
     call.respond(HttpStatusCode.Unauthorized, "Unauthorized")
 }
 
-fun Route.activateCpa(): Route = get("/activate-cpa") {
-    val log = LoggerFactory.getLogger("no.nav.emottak.smtp.sftp")
+fun Route.activateCpa(cpaArchiveRepository: CpaArchiveRepository): Route = get("/activate-cpa") {
+    val log = LoggerFactory.getLogger("no.nav.emottak.cpa.sync")
     log.info("Starting CPA activation")
     withContext(Dispatchers.IO) {
-        val cpaSyncService = CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
-        cpaSyncService.activatePendingCpas()
+        val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+        cpaActivateService.activatePendingCpas()
         call.respond(HttpStatusCode.OK, "CPA activation completed")
     }
 }
@@ -59,6 +60,14 @@ fun Route.testAzureAuthToCpaRepo(): Route = get("/testCpaRepoConnection") {
     val cpaRepoClient = getCpaRepoAuthenticatedClient()
     call.respond(
         cpaRepoClient.get("$URL_CPA_REPO_BASE/whoami").bodyAsText()
+    )
+}
+
+fun Route.testDbRead(cpaArchiveRepository: CpaArchiveRepository): Route = get("/testCpaArchiveRead") {
+    val log = LoggerFactory.getLogger("no.nav.emottak.cpa.sync")
+    log.info("Verifying that we can read from the CPA Archive database")
+    call.respond(
+        "Found quarantined CPAs: " + cpaArchiveRepository.countQuarantined()
     )
 }
 
