@@ -2,6 +2,7 @@ package no.nav.emottak.cpa.persistence
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import no.nav.emottak.utils.environment.getEnvVar
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
@@ -17,17 +18,19 @@ data class DatabaseConfig(
 
 fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository? {
     try {
-        val usernameMount = "/var/run/secrets/cpa-db-secret/dbuser"
-        val passwordMount = "/var/run/secrets/cpa-db-secret/dbpassword"
+//        val usernameMount = "/var/run/secrets/cpa-db-secret/dbuser"
+//        val passwordMount = "/var/run/secrets/cpa-db-secret/dbpassword"
 
         val hikariConfig = HikariConfig().apply {
             jdbcUrl = databaseConfig.jdbcUrl
             driverClassName = "oracle.jdbc.driver.OracleDriver"
             maximumPoolSize = databaseConfig.maxPoolSize
 //        username = readFromFile(databaseConfig.vaultMountPath + "/username")
-            username = readFromFile(usernameMount)
+//            username = readFromFile(usernameMount)
+            username = getEnvVar("CPA_DB_USERNAME", "")
 //        password = readFromFile(databaseConfig.vaultMountPath + "/password")
-            password = readFromFile(passwordMount)
+//            password = readFromFile(passwordMount)
+            password = getEnvVar("CPA_DB_PASSWORD", "")
         }
         log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
         val dataSource = HikariDataSource(hikariConfig)

@@ -13,10 +13,10 @@ class NFSConnector(
     jSch: JSch = JSch()
 ) : AutoCloseable {
 
-    private val privateKeyFile = "/var/run/secrets/cpa-sftp-keys/privatekey"
-    private val publicKeyFile = "/var/run/secrets/cpa-sftp-keys/publickey"
-    private val usernameMount = "/var/run/secrets/cpa-sftp-keys/nfsusername"
-    private val passphraseMount = "/var/run/secrets/cpa-sftp-keys/passphrase"
+    private val privateKeyFile = "/var/run/secrets/privatekey"
+    private val publicKeyFile = "/var/run/secrets/publickey"
+    private val usernameMount = "/var/run/secrets/nfsusername"
+    private val passphraseMount = "/var/run/secrets/passphrase"
     private val passphrase = String(File(passphraseMount).readBytes())
     private val username = String(File(usernameMount).readBytes())
     private val host = getEnvVar("NFS_HOST", "10.183.32.98")
