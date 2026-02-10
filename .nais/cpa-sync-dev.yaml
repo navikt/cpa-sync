@@ -52,7 +52,9 @@ spec:
     - "https://cpa-sync.intern.dev.nav.no"
   filesFrom:
     - secret: cpa-sftp-keys
+      mountPath: /var/run/secrets/sftp
     - secret: cpa-db-secret
+      mountPath: /var/run/secrets/db
   env:
     - name: NFS_HOST
       value: b27drvl011.preprod.local

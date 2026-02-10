@@ -16,8 +16,8 @@ data class DatabaseConfig(
 )
 
 fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository {
-    val usernameMount = "/var/run/secrets/dbuser"
-    val passwordMount = "/var/run/secrets/dbpassword"
+    val usernameMount = "/var/run/secrets/db/dbuser"
+    val passwordMount = "/var/run/secrets/db/dbpassword"
 
     val hikariConfig = HikariConfig().apply {
         jdbcUrl = databaseConfig.jdbcUrl
