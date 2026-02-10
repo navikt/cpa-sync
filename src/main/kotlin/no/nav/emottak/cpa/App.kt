@@ -38,6 +38,7 @@ fun main() {
     val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
     val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))
 
+    // Cannot get the vault way to work, use secret with values copied from vault
     val dbConfig = DatabaseConfig(
         jdbcUrl = getEnvVar("EMOTTAK_JDBC_URL"),
         vaultMountPath = "/var/run/secrets/nais.io/dbcreds"

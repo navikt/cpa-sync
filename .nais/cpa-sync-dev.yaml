@@ -52,12 +52,7 @@ spec:
     - "https://cpa-sync.intern.dev.nav.no"
   filesFrom:
     - secret: cpa-sftp-keys
-  vault:
-    enabled: true
-    paths:
-    - format: json
-      kvPath: /oracle/dev/creds/emottak_q1-nmt3
-      mountPath: /var/run/secrets/nais.io/dbcreds
+    - secret: cpa-db-secret
   env:
     - name: NFS_HOST
       value: b27drvl011.preprod.local

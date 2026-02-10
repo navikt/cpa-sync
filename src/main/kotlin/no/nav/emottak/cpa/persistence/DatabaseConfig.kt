@@ -16,12 +16,17 @@ data class DatabaseConfig(
 )
 
 fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository {
+    val usernameMount = "/var/run/secrets/dbuser"
+    val passwordMount = "/var/run/secrets/dbpassword"
+
     val hikariConfig = HikariConfig().apply {
         jdbcUrl = databaseConfig.jdbcUrl
         driverClassName = "oracle.jdbc.driver.OracleDriver"
         maximumPoolSize = databaseConfig.maxPoolSize
-        username = readFromFile(databaseConfig.vaultMountPath + "/username")
-        password = readFromFile(databaseConfig.vaultMountPath + "/password")
+//        username = readFromFile(databaseConfig.vaultMountPath + "/username")
+        username = readFromFile(usernameMount)
+//        password = readFromFile(databaseConfig.vaultMountPath + "/password")
+        password = readFromFile(passwordMount)
     }
     log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
     val dataSource = HikariDataSource(hikariConfig)
@@ -31,7 +36,7 @@ fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRep
 
 fun readFromFile(path: String): String {
     if (Files.exists(Paths.get(path))) {
-        log.error("Vault file $path not found")
+        log.error("Vault/secret file $path not found")
         return ""
     }
     return Files.readString(Paths.get(path))
