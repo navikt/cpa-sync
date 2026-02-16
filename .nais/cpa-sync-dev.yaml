@@ -57,8 +57,6 @@ spec:
         mountPath: /secret/emottak_db
   filesFrom:
     - secret: cpa-sftp-keys
-  envFrom:
-    - secret: cpa-db-creds
   env:
     - name: NFS_HOST
       value: b27drvl011.preprod.local

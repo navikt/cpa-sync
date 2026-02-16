@@ -2,7 +2,6 @@ package no.nav.emottak.cpa.persistence
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import no.nav.emottak.utils.environment.getEnvVar
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
@@ -24,15 +23,7 @@ fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRep
             maximumPoolSize = databaseConfig.maxPoolSize
             username = readFromFile(databaseConfig.secretPath + "/username")
             log.debug("DB user: " + username)
-            if (username.isBlank()) {
-                username = getEnvVar("CPA_DB_USERNAME", "")
-                log.debug("DB user 2: " + username)
-            }
             password = readFromFile(databaseConfig.secretPath + "/password")
-            if (password.isBlank()) {
-                password = getEnvVar("CPA_DB_PASSWORD", "")
-                log.debug("PW read from env")
-            }
         }
         log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
         val dataSource = HikariDataSource(hikariConfig)
