@@ -12,25 +12,27 @@ private val log = LoggerFactory.getLogger("no.nav.emottak.cpa.persistence.Databa
 
 data class DatabaseConfig(
     val jdbcUrl: String,
-    val vaultMountPath: String,
+    val secretPath: String,
     val maxPoolSize: Int = 4
 )
 
 fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository? {
     try {
-//        val usernameMount = "/var/run/secrets/cpa-db-secret/dbuser"
-//        val passwordMount = "/var/run/secrets/cpa-db-secret/dbpassword"
-
         val hikariConfig = HikariConfig().apply {
             jdbcUrl = databaseConfig.jdbcUrl
-            driverClassName = "oracle.jdbc.driver.OracleDriver"
+            driverClassName = "oracle.jdbc.OracleDriver"
             maximumPoolSize = databaseConfig.maxPoolSize
-//        username = readFromFile(databaseConfig.vaultMountPath + "/username")
-//            username = readFromFile(usernameMount)
-            username = getEnvVar("CPA_DB_USERNAME", "")
-//        password = readFromFile(databaseConfig.vaultMountPath + "/password")
-//            password = readFromFile(passwordMount)
-            password = getEnvVar("CPA_DB_PASSWORD", "")
+            username = readFromFile(databaseConfig.secretPath + "/username")
+            log.debug("DB user: " + username)
+            if (username.isBlank()) {
+                username = getEnvVar("CPA_DB_USERNAME", "")
+                log.debug("DB user 2: " + username)
+            }
+            password = readFromFile(databaseConfig.secretPath + "/password")
+            if (password.isBlank()) {
+                password = getEnvVar("CPA_DB_PASSWORD", "")
+                log.debug("PW read from env")
+            }
         }
         log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
         val dataSource = HikariDataSource(hikariConfig)

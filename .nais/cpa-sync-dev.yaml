@@ -50,6 +50,11 @@ spec:
       memory: "512Mi"
   ingresses:
     - "https://cpa-sync.intern.dev.nav.no"
+  vault:
+    enabled: true
+    paths:
+      - kvPath: /oracle/data/dev/creds/emottak_q1-nmt3
+        mountPath: /secret/emottak_db
   filesFrom:
     - secret: cpa-sftp-keys
   envFrom:
@@ -61,3 +66,5 @@ spec:
       value: DEBUG
     - name: EMOTTAK_JDBC_URL
       value: jdbc:oracle:thin:@//dmv06-scan.adeo.no:1521/EMOTTAK_Q1_HA
+    - name: EMOTTAK_DB_SECRET_PATH
+      value: /secret/emottak_db
