@@ -45,7 +45,7 @@ fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRep
 }
 
 fun readFromFile(path: String): String {
-    if (Files.exists(Paths.get(path))) {
+    if (!Files.exists(Paths.get(path))) {
         log.error("Vault/secret file $path not found")
         return ""
     }
