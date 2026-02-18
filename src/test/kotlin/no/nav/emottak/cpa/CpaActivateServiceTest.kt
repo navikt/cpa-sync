@@ -12,6 +12,7 @@ import io.mockk.spyk
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import no.nav.emottak.cpa.nfs.NFSConnector
+import no.nav.emottak.cpa.persistence.ArchivedCpa
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -79,6 +80,15 @@ class CpaActivateServiceTest {
     }
 
     @Test
+    fun `getCpaPart works for various cases`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+
+        assertEquals("01230800_nav.60120.xml", cpaActivateService.getCpaPart("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
+        assertEquals("01230800_nav.qass.60120.xml", cpaActivateService.getCpaPart("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
+    }
+
+    @Test
     fun `activatePendingCpas works for various file names`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
         val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
@@ -89,7 +99,7 @@ class CpaActivateServiceTest {
         val tomorrow = nowInActivationTimezone().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
 
         val entryToBeActivated1 = mockLsEntry(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
-        val entryToBeActivated2 = mockLsEntry(oneHourAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        val entryToBeActivated2 = mockLsEntry(oneHourAgo + "_nav.60121._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryNotToBeActivatedYet = mockLsEntry(tomorrow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryWithoutProperTs = mockLsEntry("nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
         val entryWithMissingDigitInTs = mockLsEntry("0123080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
@@ -98,18 +108,27 @@ class CpaActivateServiceTest {
         coEvery {
             mockedNFSConnector.folder()
         }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated1, entryToBeActivated2, entryNotToBeActivatedYet, entryWithoutProperTs, entryWithMissingDigitInTs, entryWithRubbishID, entryWithoutProperSuffix)))
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", true, false))
 
         cpaActivateService.activatePendingCpas()
-        verify(exactly = 2) {
-            runBlocking { mockedNFSConnector.copy(any(), any()) }
-        }
-        verify(exactly = 2) {
-            runBlocking { mockCpaArchiveRepository.setNotQuarantined(any()) }
+        verify {
+            runBlocking {
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
+                mockedNFSConnector.rename(oneHourAgo + "_nav.60121._R_Zm9ybnllbHNl._R_.qrntn", "nav.60121.xml")
+            }
         }
         verify {
             runBlocking {
-                mockedNFSConnector.copy(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
-                mockedNFSConnector.copy(oneHourAgo + "_nav.60121_R_Zm9ybnllbHNl._R_.qrntn", "nav.60121.xml")
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223)
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", any())
+                mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
             }
         }
     }
@@ -124,6 +143,7 @@ class CpaActivateServiceTest {
         return mockk {
             every { folder() } returns Vector<ChannelSftp.LsEntry>().apply { addAll(lsEntries) }
             every { file(any()) } returnsMany nfsCpaIds.map { ByteArrayInputStream(simulateFileContent(it).toByteArray()) }
+            every { rename(any(), any()) } just Runs
             every { close() } just Runs
         }
     }

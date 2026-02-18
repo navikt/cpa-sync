@@ -61,6 +61,7 @@ dependencies {
     implementation("dev.reformator.stacktracedecoroutinator:stacktrace-decoroutinator-jvm:2.3.8")
     runtimeOnly("net.java.dev.jna:jna:5.12.1")
     testRuntimeOnly(testLibs.junit.jupiter.engine)
+    testRuntimeOnly("com.h2database:h2:2.3.232")
     testImplementation(testLibs.mockk.jvm)
     testImplementation(testLibs.mockk.dsl.jvm)
     testImplementation(testLibs.junit.jupiter.api)
