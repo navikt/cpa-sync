@@ -50,8 +50,17 @@ spec:
       memory: "1024Mi"
   ingresses:
     - "https://cpa-sync.intern.nav.no"
+  vault:
+    enabled: true
+    paths:
+      - kvPath: /oracle/data/prod/creds/emottak-nmp5
+        mountPath: /secret/emottak_db
   filesFrom:
     - secret: cpa-sftp-keys
   env:
     - name: NFS_HOST
       value: a01drvl100.adeo.no
+    - name: EMOTTAK_JDBC_URL
+      value: jdbc:oracle:thin:@dmv28-scan.adeo.no:1521/emottak_ha
+    - name: EMOTTAK_DB_SECRET_PATH
+      value: /secret/emottak_db

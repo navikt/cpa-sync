@@ -15,24 +15,19 @@ data class DatabaseConfig(
     val maxPoolSize: Int = 4
 )
 
-fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository? {
-    try {
-        val hikariConfig = HikariConfig().apply {
-            jdbcUrl = databaseConfig.jdbcUrl
-            driverClassName = "oracle.jdbc.OracleDriver"
-            maximumPoolSize = databaseConfig.maxPoolSize
-            username = readFromFile(databaseConfig.secretPath + "/username")
-            log.debug("DB user: " + username)
-            password = readFromFile(databaseConfig.secretPath + "/password")
-        }
-        log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
-        val dataSource = HikariDataSource(hikariConfig)
-        val database = Database.connect(dataSource)
-        return CpaArchiveRepository(database)
-    } catch (e: Exception) {
-        log.error("Failed to connect to database", e)
-        return null
+fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository {
+    val hikariConfig = HikariConfig().apply {
+        jdbcUrl = databaseConfig.jdbcUrl
+        driverClassName = "oracle.jdbc.OracleDriver"
+        maximumPoolSize = databaseConfig.maxPoolSize
+        username = readFromFile(databaseConfig.secretPath + "/username")
+        log.debug("DB user: " + username)
+        password = readFromFile(databaseConfig.secretPath + "/password")
     }
+    log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
+    val dataSource = HikariDataSource(hikariConfig)
+    val database = Database.connect(dataSource)
+    return CpaArchiveRepository(database)
 }
 
 fun readFromFile(path: String): String {

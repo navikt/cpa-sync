@@ -9,6 +9,9 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.metrics.micrometer.MicrometerMetrics
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.micrometer.prometheus.PrometheusConfig
 import io.micrometer.prometheus.PrometheusMeterRegistry
@@ -44,13 +47,11 @@ fun main() {
     )
     val cpaArchiveRepository = configureCpaArchiveRepository(dbConfig)
 
-    if (cpaArchiveRepository != null) {
-        GlobalScope.launchActivateCpa(
-            5.seconds,
-            activateCpaInterval,
-            cpaArchiveRepository
-        )
-    }
+    GlobalScope.launchActivateCpa(
+        5.seconds,
+        activateCpaInterval,
+        cpaArchiveRepository
+    )
     GlobalScope.launchSyncCpa(
         5.seconds,
         syncCpaInterval,
@@ -62,7 +63,7 @@ fun main() {
 
 internal val log = LoggerFactory.getLogger("no.nav.emottak.cpa")
 
-fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository?): Application.() -> Unit {
+fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application.() -> Unit {
     return {
         install(ContentNegotiation) {
             json()
@@ -74,11 +75,13 @@ fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository?): Applicatio
         routing {
             if (!isProdEnv()) {
                 testAzureAuthToCpaRepo()
-                if (cpaArchiveRepository != null) testDbRead(cpaArchiveRepository)
+                testDbRead(cpaArchiveRepository)
             }
             registerHealthEndpoints(appMicrometerRegistry)
             cpaSync()
-            if (cpaArchiveRepository != null) activateCpa(cpaArchiveRepository)
+            activateCpa(cpaArchiveRepository)
+            pauseActivation()
+            resumeActivation()
         }
     }
 }
@@ -107,6 +110,8 @@ fun CoroutineScope.launchSyncCpa(
     }
 }
 
+var cpaActivationPaused = false
+
 fun CoroutineScope.launchActivateCpa(
     startupDelay: Duration,
     processInterval: Duration,
@@ -121,6 +126,10 @@ fun CoroutineScope.launchActivateCpa(
         launch(Dispatchers.IO) {
             log.info("----- Running task: Activate CPA")
             try {
+                if (cpaActivationPaused) {
+                    log.info("CPA activation task is paused.")
+                    return@launch
+                }
                 val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
                 cpaActivateService.activatePendingCpas()
                 log.info("----- Done: Activate CPA")
@@ -130,3 +139,21 @@ fun CoroutineScope.launchActivateCpa(
         }
     }
 }
+
+fun Route.pauseActivation(): Route =
+    get("/api/pauseactivation") {
+        CoroutineScope(Dispatchers.IO).launch() {
+            cpaActivationPaused = true
+        }
+        log.info("Pausing CPA activation task.")
+        call.respond("CPA activation is PAUSED.")
+    }
+
+fun Route.resumeActivation(): Route =
+    get("/api/resumeactivation") {
+        CoroutineScope(Dispatchers.IO).launch() {
+            cpaActivationPaused = false
+        }
+        log.info("Resuming CPA activation task.")
+        call.respond("CPA activation is RESUMED")
+    }
