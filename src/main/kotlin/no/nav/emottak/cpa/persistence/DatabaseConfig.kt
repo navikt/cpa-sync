@@ -21,7 +21,6 @@ fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRep
         driverClassName = "oracle.jdbc.OracleDriver"
         maximumPoolSize = databaseConfig.maxPoolSize
         username = readFromFile(databaseConfig.secretPath + "/username")
-        log.debug("DB user: " + username)
         password = readFromFile(databaseConfig.secretPath + "/password")
     }
     log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)

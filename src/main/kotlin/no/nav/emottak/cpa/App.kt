@@ -38,7 +38,8 @@ fun main() {
     // }
 
     val cpaRepoClient = getCpaRepoAuthenticatedClient()
-    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
+//    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
+    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "5m"))
     val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))
 
     val dbConfig = DatabaseConfig(
@@ -142,18 +143,14 @@ fun CoroutineScope.launchActivateCpa(
 
 fun Route.pauseActivation(): Route =
     get("/api/pauseactivation") {
-        CoroutineScope(Dispatchers.IO).launch() {
-            cpaActivationPaused = true
-        }
+        cpaActivationPaused = true
         log.info("Pausing CPA activation task.")
         call.respond("CPA activation is PAUSED.")
     }
 
 fun Route.resumeActivation(): Route =
     get("/api/resumeactivation") {
-        CoroutineScope(Dispatchers.IO).launch() {
-            cpaActivationPaused = false
-        }
+        cpaActivationPaused = false
         log.info("Resuming CPA activation task.")
         call.respond("CPA activation is RESUMED")
     }
