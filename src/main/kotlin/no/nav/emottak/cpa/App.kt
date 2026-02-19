@@ -38,8 +38,7 @@ fun main() {
     // }
 
     val cpaRepoClient = getCpaRepoAuthenticatedClient()
-//    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
-    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "5m"))
+    val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
     val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))
 
     val dbConfig = DatabaseConfig(
