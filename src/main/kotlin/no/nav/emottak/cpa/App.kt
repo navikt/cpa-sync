@@ -110,7 +110,7 @@ fun CoroutineScope.launchSyncCpa(
     }
 }
 
-var cpaActivationPaused = false
+var cpaActivationOn = getEnvVar("RUN_ACTIVATE_CPA", "false").toBoolean()
 
 fun CoroutineScope.launchActivateCpa(
     startupDelay: Duration,
@@ -126,8 +126,8 @@ fun CoroutineScope.launchActivateCpa(
         launch(Dispatchers.IO) {
             log.info("----- Running task: Activate CPA")
             try {
-                if (cpaActivationPaused) {
-                    log.info("CPA activation task is paused.")
+                if (!cpaActivationOn) {
+                    log.info("CPA activation task is OFF.")
                     return@launch
                 }
                 val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
@@ -142,14 +142,14 @@ fun CoroutineScope.launchActivateCpa(
 
 fun Route.pauseActivation(): Route =
     get("/api/pauseactivation") {
-        cpaActivationPaused = true
+        cpaActivationOn = false
         log.info("Pausing CPA activation task.")
-        call.respond("CPA activation is PAUSED.")
+        call.respond("CPA activation is OFF.")
     }
 
 fun Route.resumeActivation(): Route =
     get("/api/resumeactivation") {
-        cpaActivationPaused = false
+        cpaActivationOn = true
         log.info("Resuming CPA activation task.")
-        call.respond("CPA activation is RESUMED")
+        call.respond("CPA activation is ON")
     }

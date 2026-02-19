@@ -66,5 +66,7 @@ spec:
       value: jdbc:oracle:thin:@//dmv06-scan.adeo.no:1521/EMOTTAK_Q1_HA
     - name: EMOTTAK_DB_SECRET_PATH
       value: /secret/emottak_db
+    - name: RUN_ACTIVATE_CPA
+      value: "true"
     - name: ACTIVATE_CPA_INTERVAL
       value: 5m
