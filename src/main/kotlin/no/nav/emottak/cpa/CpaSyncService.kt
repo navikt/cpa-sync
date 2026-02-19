@@ -5,8 +5,6 @@ import com.jcraft.jsch.SftpException
 import io.ktor.client.HttpClient
 import net.logstash.logback.marker.Markers
 import no.nav.emottak.cpa.nfs.NFSConnector
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.time.Instant
@@ -14,10 +12,7 @@ import java.time.temporal.ChronoUnit
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
-data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
-
 class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConnector: NFSConnector) {
-    private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
 
     suspend fun sync() {
         return runCatching {
@@ -31,10 +26,10 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     }
 
     internal fun getNfsCpaMap(): Map<String, NfsCpa> {
-        return nfsConnector.use { connector ->
-            connector.folder().asSequence()
+        nfsConnector.use { connector ->
+            return connector.folder().asSequence()
                 .filter { entry -> isXmlFileEntry(entry) }
-                .fold(mutableMapOf()) { accumulator, nfsCpaFile ->
+                .fold(mutableMapOf<String, NfsCpa>()) { accumulator, nfsCpaFile ->
                     val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return accumulator
 
                     val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
