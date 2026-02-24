@@ -17,17 +17,16 @@ data class DatabaseConfig(
 )
 
 fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository {
-    // Når vi bruker CURRENT TIMESTAMP i inserts, får vi GMT-tid. Prøver å fikse det med denne.
-    val ourTimezone = TimeZone.currentSystemDefault().id
+    // Når vi bruker CURRENT TIMESTAMP i inserts, fikk vi GMT-tid. Har prøvd å fikse det med å sette TZ i Dockerfile
+    log.info("Using timezone {}", TimeZone.currentSystemDefault().id)
     val hikariConfig = HikariConfig().apply {
         jdbcUrl = databaseConfig.jdbcUrl
         driverClassName = "oracle.jdbc.OracleDriver"
         maximumPoolSize = databaseConfig.maxPoolSize
         username = readFromFile(databaseConfig.secretPath + "/username")
         password = readFromFile(databaseConfig.secretPath + "/password")
-        connectionInitSql = "ALTER SESSION SET TIME_ZONE = '$ourTimezone'"
     }
-    log.info("DB URL set to {}, with user {}, init-sql: {}", hikariConfig.jdbcUrl, hikariConfig.username, hikariConfig.connectionInitSql)
+    log.info("DB URL set to {}, with user {}", hikariConfig.jdbcUrl, hikariConfig.username)
     val dataSource = HikariDataSource(hikariConfig)
     val database = Database.connect(dataSource)
 
