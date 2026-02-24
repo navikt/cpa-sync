@@ -50,7 +50,7 @@ fun Route.activateCpa(cpaArchiveRepository: CpaArchiveRepository): Route = get("
     val log = LoggerFactory.getLogger("no.nav.emottak.cpa.sync")
     log.info("Starting CPA activation")
     withContext(Dispatchers.IO) {
-        val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+        val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository, cpaActivationInDb)
         cpaActivateService.activatePendingCpas()
         call.respond(HttpStatusCode.OK, "CPA activation completed")
     }

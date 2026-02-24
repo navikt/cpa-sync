@@ -17,14 +17,14 @@ data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
 const val QUARANTINE_SUFFIX = ".qrntn"
 val ACTIVATION_TIMEZONE = ZoneId.of("Europe/Oslo")
 
-class CpaActivateService(private val nfsConnector: NFSConnector, private val cpaArchiveRepository: CpaArchiveRepository) {
+class CpaActivateService(private val nfsConnector: NFSConnector, private val cpaArchiveRepository: CpaArchiveRepository, private val cpaActivationInDb: Boolean = true) {
     private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
 
     suspend fun activatePendingCpas() {
         nfsConnector.use { connector ->
             connector.folder().asSequence()
                 .filter { entry -> isFileEntryToBeActivated(entry) }
-                .forEach { entry -> activate(connector, entry, cpaArchiveRepository) }
+                .forEach { entry -> activate(connector, entry, cpaArchiveRepository, cpaActivationInDb) }
         }
     }
 
@@ -75,9 +75,12 @@ Da ser det ut til at dette skal gjøres for å aktivere en CPA:
 Fra Parviz: partner_cpp_id og mottak_id fylles ut med f.eks. timestamp eller "cpa-bestilling-oppdatering"
 Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959cppa50771
  */
-    internal suspend fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry, cpaArchiveRepository: CpaArchiveRepository) {
+    internal suspend fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry, cpaArchiveRepository: CpaArchiveRepository, cpaActivationInDb: Boolean) {
         activateAtFilesystem(connector, entry)
-        activateInDb(entry, cpaArchiveRepository)
+        log.info("Activation in DB on: $cpaActivationInDb")
+        if (cpaActivationInDb) {
+            activateInDb(entry, cpaArchiveRepository)
+        }
     }
 
     internal suspend fun activateAtFilesystem(connector: NFSConnector, entry: ChannelSftp.LsEntry) {

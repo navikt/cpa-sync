@@ -82,6 +82,7 @@ fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application
             activateCpa(cpaArchiveRepository)
             pauseActivation()
             resumeActivation()
+            toggleActivateInDb()
         }
     }
 }
@@ -111,6 +112,7 @@ fun CoroutineScope.launchSyncCpa(
 }
 
 var cpaActivationOn = getEnvVar("RUN_ACTIVATE_CPA", "false").toBoolean()
+var cpaActivationInDb = getEnvVar("ACTIVATE_CPA_DB", "true").toBoolean()
 
 fun CoroutineScope.launchActivateCpa(
     startupDelay: Duration,
@@ -130,7 +132,7 @@ fun CoroutineScope.launchActivateCpa(
                     log.info("CPA activation task is OFF.")
                     return@launch
                 }
-                val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+                val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository, cpaActivationInDb)
                 cpaActivateService.activatePendingCpas()
                 log.info("----- Done: Activate CPA")
             } catch (e: Exception) {
@@ -152,4 +154,11 @@ fun Route.resumeActivation(): Route =
         cpaActivationOn = true
         log.info("Resuming CPA activation task.")
         call.respond("CPA activation is ON")
+    }
+
+fun Route.toggleActivateInDb(): Route =
+    get("/api/toggleactivatedb") {
+        cpaActivationInDb = !cpaActivationInDb
+        log.info("CPA activation in DB toggled, on: $cpaActivationInDb.")
+        call.respond("CPA activation in DB toggled, on: $cpaActivationInDb.")
     }
