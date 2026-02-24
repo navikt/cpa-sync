@@ -47,7 +47,7 @@ class CpaArchiveRepositoryTest {
     @Test
     fun testSetDeleted() = runBlocking {
         runSqlScript("/cpa_archive_data.sql")
-        repo?.setDeleted(1)
+        repo?.setDeleted(1, "The reason")
         val onlyOne = repo?.findLatestByCpaId("onlyOne")
         assertEquals(true, onlyOne?.deleted, "Should be deleted")
     }

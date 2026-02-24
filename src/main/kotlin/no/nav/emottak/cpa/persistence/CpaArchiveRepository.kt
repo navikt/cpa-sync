@@ -37,12 +37,13 @@ class CpaArchiveRepository(private val database: Database) {
 
  */
 
-    suspend fun setDeleted(id: Int) = withContext(Dispatchers.IO) {
+    suspend fun setDeleted(id: Int, newReason: String) = withContext(Dispatchers.IO) {
         transaction(database) {
             CpaArchiveTable.update({
                 CpaArchiveTable.id eq id
             }) {
                 it[deleted] = true
+                it[reason] = newReason
             }
         }
     }
@@ -66,7 +67,7 @@ MAIL_RECEIVER, VALID_FROM, VALID_TO, CPP, CPA, ISSUER_NONREP, SERIALNO_NONREP, V
 SERIALNO_DATAENC, VALIDTO_DATAENC, ISSUER_SSL, SERIALNO_SSL, VALIDTO_SSL, DELETED, 'cpa-activate', QUARANTINED, REASON
  from partner_cpa_archive where id = 
 """
-    suspend fun setAsNewCpa(id: Int, useCpaId: String, cppAndMottaksId: String) = withContext(Dispatchers.IO) {
+    suspend fun setAsNewCpa(id: Int, useCpaId: String, cppAndMottaksId: String, newReason: String) = withContext(Dispatchers.IO) {
         transaction(database) {
             CpaArchiveTable.update({
                 CpaArchiveTable.id eq id
@@ -76,6 +77,7 @@ SERIALNO_DATAENC, VALIDTO_DATAENC, ISSUER_SSL, SERIALNO_SSL, VALIDTO_SSL, DELETE
                 it[deleted] = false
                 it[partnerCppId] = cppAndMottaksId
                 it[mottakId] = cppAndMottaksId
+                it[reason] = newReason
             }
         }
     }

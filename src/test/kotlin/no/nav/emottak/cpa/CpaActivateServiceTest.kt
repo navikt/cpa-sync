@@ -68,9 +68,8 @@ class CpaActivateServiceTest {
         val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
 
         assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
-        assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120_R_Zm9ybnllbHNl._R_.qrntn"), "Example case without dot")
-        assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120_"), "Example case minimal")
         assertEquals("nav.qass.60120.xml", cpaActivateService.getActivatedName("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
+        assertEquals("997506499_889640782_011.xml", cpaActivateService.getActivatedName("02231410_997506499_889640782_011._R_d3Fl._R_.qrntn"), "Old CPA-ID format case")
         assertEquals(null, cpaActivateService.getActivatedName("01230800_nav.60120.Zm9ybnllbHNl.qrntn"), "Missing second underscore")
         assertEquals(null, cpaActivateService.getActivatedName("01230800_n60120._R_Zm9ybnllbHNl._R_.qrntn"), "Too short invalid ID string")
         assertEquals(null, cpaActivateService.getActivatedName("01230800nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Missing first underscore")
@@ -86,6 +85,7 @@ class CpaActivateServiceTest {
 
         assertEquals("01230800_nav.60120.xml", cpaActivateService.getCpaPart("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
         assertEquals("01230800_nav.qass.60120.xml", cpaActivateService.getCpaPart("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
+        assertEquals("02231410_997506499_889640782_011.xml", cpaActivateService.getCpaPart("02231410_997506499_889640782_011._R_d3Fl._R_.qrntn"), "Old CPA-ID format case")
     }
 
     @Test
@@ -125,8 +125,8 @@ class CpaActivateServiceTest {
             runBlocking {
                 mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
                 mockCpaArchiveRepository.insertCopy(123)
-                mockCpaArchiveRepository.setDeleted(223)
-                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", any())
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", any(), "Activated at specified time")
                 mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
                 mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
             }

@@ -101,7 +101,7 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
             return null
         }
         val fromStart = filename.substring(9)
-        val endIndex = fromStart.indexOf('_')
+        val endIndex = fromStart.indexOf("._R_")
         if (endIndex == -1 || endIndex < 8) {
             log.warn("$filename does not contain proper CPA ID between first and second underscore, cannot be converted to activated name")
             return null
@@ -141,25 +141,26 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
         val cpaId = activatedCpaFilename.replace(".xml", "").replace(".", ":")
         val tmpCpaId = tmpFilename.replace(".xml", "").replace(".", ":")
         log.info("Activating CPA $cpaId from $tmpCpaId")
+        val reason = "Activated at specified time"
         val latestTmp = cpaArchiveRepository.findLatestByCpaId(tmpCpaId)
         if (latestTmp != null) {
-            // lag ny archive-record med tmpid, eneste endring er deleted = 1
+            // lag ny archive-record med tmpid, endring er deleted = 1, og ny reason
             cpaArchiveRepository.insertCopy(latestTmp.id)
-            val copyTmp = cpaArchiveRepository.findLatestByCpaId(tmpCpaId)
-            if (copyTmp != null) cpaArchiveRepository.setDeleted(copyTmp.id)
-            // lag ny archive-record med ordentlig id, endringer: deleted/quarantined = 0, ny partner_cpp_id og mottak_id
+            val copyTmp = cpaArchiveRepository.findLatestByCpaId(tmpCpaId)!!
+            cpaArchiveRepository.setDeleted(copyTmp.id, reason)
+
+            // lag ny archive-record med ordentlig id, endringer: deleted/quarantined = 0, ny partner_cpp_id og mottak_id, ny reason
             val timestampString = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"))
             val cppAndMottaksId = "$timestampString.cpa-aktivering"
             log.info("Creating new CPA record for $cpaId with CPP_ID=$cppAndMottaksId")
             cpaArchiveRepository.insertCopy(latestTmp.id)
-            val copy = cpaArchiveRepository.findLatestByCpaId(tmpCpaId)
-            if (copy != null) {
-                cpaArchiveRepository.setAsNewCpa(copy.id, cpaId, cppAndMottaksId)
-                // endre gjeldende CPA-record med verdier fra nyeste archive-record
-                cpaArchiveRepository.updateFromArchive(cpaId, copy.id)
-                // slette midlertidig CPA
-                cpaArchiveRepository.deleteTmpCpa(tmpCpaId)
-            }
+            val copy = cpaArchiveRepository.findLatestByCpaId(tmpCpaId)!!
+            cpaArchiveRepository.setAsNewCpa(copy.id, cpaId, cppAndMottaksId, reason)
+
+            // endre gjeldende CPA-record med verdier fra nyeste archive-record
+            cpaArchiveRepository.updateFromArchive(cpaId, copy.id)
+            // slette midlertidig CPA
+            cpaArchiveRepository.deleteTmpCpa(tmpCpaId)
         }
     }
 }
