@@ -112,7 +112,7 @@ fun CoroutineScope.launchSyncCpa(
 }
 
 var cpaActivationOn = getEnvVar("RUN_ACTIVATE_CPA", "false").toBoolean()
-var cpaActivationInDb = getEnvVar("ACTIVATE_CPA_DB", "true").toBoolean()
+var cpaActivationInDb = getEnvVar("ACTIVATE_CPA_DB", "false").toBoolean()
 
 fun CoroutineScope.launchActivateCpa(
     startupDelay: Duration,

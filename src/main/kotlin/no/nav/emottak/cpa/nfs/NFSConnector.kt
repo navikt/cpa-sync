@@ -45,6 +45,11 @@ class NFSConnector(
 
     fun file(filename: String): InputStream = sftpChannel.get(filename)
 
+    fun save(filename: String, bytes: InputStream) {
+        sftpChannel.put(bytes, outboundCpa + "/" + filename)
+        bytes.close()
+    }
+
     fun rename(from: String, to: String) {
         // Assume we just overwrite (and are allowed to) if tofile already exists
         sftpChannel.rename(outboundCpa + "/" + from, outboundCpa + "/" + to)

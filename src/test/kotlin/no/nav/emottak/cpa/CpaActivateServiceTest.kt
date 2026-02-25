@@ -109,6 +109,12 @@ class CpaActivateServiceTest {
             mockedNFSConnector.folder()
         }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated1, entryToBeActivated2, entryNotToBeActivatedYet, entryWithoutProperTs, entryWithMissingDigitInTs, entryWithRubbishID, entryWithoutProperSuffix)))
         coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream("dummy contents".toByteArray()))
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.just(Runs)
+        coEvery {
             mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
         }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", true, false))
             .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", true, false))
@@ -131,6 +137,24 @@ class CpaActivateServiceTest {
                 mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
             }
         }
+    }
+
+    @Test
+    fun verifyFileContentsChange() {
+        val old = """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cppa:CollaborationProtocolAgreement xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:cppa="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd" xmlns:ns3="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" cppa:cpaid="02251213_nav:qass:12345" cppa:version="2_0b" xsi:schemaLocation="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd cpp-cpa-2_0.xsd">
+    <cppa:Status cppa:value="proposed"/>
+        """.trimIndent().trim()
+        val expected = """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cppa:CollaborationProtocolAgreement xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:cppa="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd" xmlns:ns3="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" cppa:cpaid="nav:qass:12345" cppa:version="2_0b" xsi:schemaLocation="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd cpp-cpa-2_0.xsd">
+    <cppa:Status cppa:value="proposed"/>            
+        """.trimIndent().trim()
+        val fileName = "nav.qass.12345.xml"
+        val cpaId = fileName.replace(".xml", "").replace(".", ":")
+        val result = old.replace(Regex("cppa:cpaid=\".+?\""), "cppa:cpaid=\"$cpaId\"")
+        assertEquals(expected, result)
     }
 
     private fun mockNfsFromMap(nfsCpaMap: Map<String, String>): NFSConnector {

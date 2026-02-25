@@ -5,6 +5,7 @@ import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -90,11 +91,22 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
             return
         }
         try {
+            val cpaIdToUse = activatedCpaFilename.replace(".xml", "").replace(".", ":")
+            val fileContents = connector.file(entry.filename).use { fileStream ->
+                String(fileStream.readAllBytes())
+            }
+            val fileContentsWithCorrectCpaId: String = changeCpaId(fileContents, cpaIdToUse)
+            connector.save(entry.filename, ByteArrayInputStream(fileContentsWithCorrectCpaId.toByteArray()))
             connector.rename(entry.filename, activatedCpaFilename)
             log.info("${entry.filename} has been activated with file name $activatedCpaFilename")
         } catch (e: Exception) {
             log.error("Failed to activate ${entry.filename}", e)
         }
+    }
+
+//  cppa:cpaid="02251213_nav:qass:12345"  ->  cppa:cpaid="nav:qass:12345"
+    private fun changeCpaId(cpaFile: String, cpaId: String): String {
+        return cpaFile.replace(Regex("cppa:cpaid=\".+?\""), "cppa:cpaid=\"$cpaId\"")
     }
 
     internal fun getActivatedName(filename: String): String? {
