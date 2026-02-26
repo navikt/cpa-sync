@@ -18,14 +18,14 @@ data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
 const val QUARANTINE_SUFFIX = ".qrntn"
 val ACTIVATION_TIMEZONE = ZoneId.of("Europe/Oslo")
 
-class CpaActivateService(private val nfsConnector: NFSConnector, private val cpaArchiveRepository: CpaArchiveRepository, private val cpaActivationInDb: Boolean = true) {
+class CpaActivateService(private val nfsConnector: NFSConnector, private val cpaArchiveRepository: CpaArchiveRepository) {
     private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
 
     suspend fun activatePendingCpas() {
         nfsConnector.use { connector ->
             connector.folder().asSequence()
                 .filter { entry -> isFileEntryToBeActivated(entry) }
-                .forEach { entry -> activate(connector, entry, cpaArchiveRepository, cpaActivationInDb) }
+                .forEach { entry -> activate(connector, entry, cpaArchiveRepository) }
         }
     }
 
@@ -66,22 +66,20 @@ class CpaActivateService(private val nfsConnector: NFSConnector, private val cpa
     }
 
 /*
-Da ser det ut til at dette skal gjøres for å aktivere en CPA:
+Dette skal gjøres for å aktivere en CPA:
 
+- endre qrntn-fila så CPA-ID inni fila blir riktig (nav:XXX, uten timestamp-prefix)
 - rename qrntn-fila så den blir hetende nav.XXX.xml. Da overskriver den fila som har det navnet nå.
-- insert'e en record i partner_cpa_archive for cpa-id yyyyMMdd_nav:XXX, med deleted=1, ellers uendrede verdier
-- insert'e en record i partner_cpa_archive for cpa-id nav:XXX, med egen/ny partner_cpp_id og mottak_id
+- insert'e en record i partner_cpa_archive for cpa-id yyyyMMdd_nav:XXX, med deleted=1, og ny reason
+- insert'e en record i partner_cpa_archive for cpa-id nav:XXX, med deleted/quarantined = 0, ny partner_cpp_id og mottak_id, ny reason
 - endre record'en i partner_cpa som har cpa-id nav:XXX så den får verdiene fra den nye recorden over
 - slette record'en i partner_cpa som har cpa-id yyyyMMdd_nav:XXX
 Fra Parviz: partner_cpp_id og mottak_id fylles ut med f.eks. timestamp eller "cpa-bestilling-oppdatering"
 Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959cppa50771
  */
-    internal suspend fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry, cpaArchiveRepository: CpaArchiveRepository, cpaActivationInDb: Boolean) {
+    internal suspend fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry, cpaArchiveRepository: CpaArchiveRepository) {
         activateAtFilesystem(connector, entry)
-        log.info("Activation in DB on: $cpaActivationInDb")
-        if (cpaActivationInDb) {
-            activateInDb(entry, cpaArchiveRepository)
-        }
+        activateInDb(entry, cpaArchiveRepository)
     }
 
     internal suspend fun activateAtFilesystem(connector: NFSConnector, entry: ChannelSftp.LsEntry) {
@@ -91,11 +89,11 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
             return
         }
         try {
-            val cpaIdToUse = activatedCpaFilename.replace(".xml", "").replace(".", ":")
+            val cpaIdToUse = cpaIdFromFilename(activatedCpaFilename)
             val fileContents = connector.file(entry.filename).use { fileStream ->
                 String(fileStream.readAllBytes())
             }
-            val fileContentsWithCorrectCpaId: String = changeCpaId(fileContents, cpaIdToUse)
+            val fileContentsWithCorrectCpaId: String = changeCpaIdInFile(fileContents, cpaIdToUse)
             connector.save(entry.filename, ByteArrayInputStream(fileContentsWithCorrectCpaId.toByteArray()))
             connector.rename(entry.filename, activatedCpaFilename)
             log.info("${entry.filename} has been activated with file name $activatedCpaFilename")
@@ -104,9 +102,14 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
         }
     }
 
-//  cppa:cpaid="02251213_nav:qass:12345"  ->  cppa:cpaid="nav:qass:12345"
-    private fun changeCpaId(cpaFile: String, cpaId: String): String {
-        return cpaFile.replace(Regex("cppa:cpaid=\".+?\""), "cppa:cpaid=\"$cpaId\"")
+    //  nav.qass.12345.xml  ->  nav:qass:12345
+    internal fun cpaIdFromFilename(filename: String): String {
+        return filename.replace(".xml", "").replace(".", ":")
+    }
+
+    //  cppa:cpaid="02251213_nav:qass:12345"  ->  cppa:cpaid="nav:qass:12345"
+    internal fun changeCpaIdInFile(fileContents: String, cpaId: String): String {
+        return fileContents.replace(Regex("cppa:cpaid=\".+?\""), "cppa:cpaid=\"$cpaId\"")
     }
 
     internal fun getActivatedName(filename: String): String? {
@@ -118,7 +121,7 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
         val fromStart = filename.substring(9)
         val endIndex = fromStart.indexOf("._R_")
         if (endIndex == -1 || endIndex < 8) {
-            log.warn("$filename does not contain proper CPA ID between first and second underscore, cannot be converted to activated name")
+            log.warn("$filename does not contain proper CPA ID between first and second '._R_', cannot be converted to activated name")
             return null
         }
         val cpaId = fromStart.substring(0, endIndex)
@@ -136,7 +139,7 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
         }
         val endIndex = filename.indexOf("._R_")
         if (endIndex == -1 || endIndex < 8) {
-            log.warn("$filename does not contain proper CPA ID between first and second underscore, cannot be converted to activated name")
+            log.warn("$filename does not contain proper CPA ID between first and second '._R_', cannot be converted to activated name")
             return null
         }
         val cpaId = filename.substring(0, endIndex)
@@ -153,7 +156,7 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
             log.warn("Failed to convert ${entry.filename} to activated CPA file name")
             return
         }
-        val cpaId = activatedCpaFilename.replace(".xml", "").replace(".", ":")
+        val cpaId = cpaIdFromFilename(activatedCpaFilename)
         val tmpCpaId = tmpFilename.replace(".xml", "").replace(".", ":")
         log.info("Activating CPA $cpaId from $tmpCpaId")
         val reason = "Activated at specified time"
