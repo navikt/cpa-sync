@@ -64,7 +64,7 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     }
 
     private fun fetchNfsCpaContent(nfsConnector: NFSConnector, nfsCpaFile: ChannelSftp.LsEntry): String {
-        return nfsConnector.file("/outbound/cpa/${nfsCpaFile.filename}").use {
+        return nfsConnector.file("${nfsCpaFile.filename}").use {
             String(it.readAllBytes())
         }
     }
