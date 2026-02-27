@@ -1,8 +1,13 @@
 package no.nav.emottak.cpa
 
 import com.jcraft.jsch.ChannelSftp
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
+import no.nav.emottak.utils.environment.getEnvVar
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -80,6 +85,16 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
     internal suspend fun activate(connector: NFSConnector, entry: ChannelSftp.LsEntry, cpaArchiveRepository: CpaArchiveRepository) {
         activateAtFilesystem(connector, entry)
         activateInDb(entry, cpaArchiveRepository)
+    }
+
+    internal suspend fun refreshCache() {
+        val url = getEnvVar("CPA_REFRESH_URL", "https://wasapp-q.adeo.no/emottak-admin/cpa/refresh.htm")
+        log.info("Trying get from url: $url")
+        val client = HttpClient(CIO)
+        val response = client.get(url)
+        log.info("Response status: " + response.status.description)
+        log.info("Response body: " + response.bodyAsText())
+        client.close()
     }
 
     internal suspend fun activateAtFilesystem(connector: NFSConnector, entry: ChannelSftp.LsEntry) {

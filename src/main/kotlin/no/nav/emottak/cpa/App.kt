@@ -76,6 +76,7 @@ fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application
             if (!isProdEnv()) {
                 testAzureAuthToCpaRepo()
                 testDbRead(cpaArchiveRepository)
+                testRefreshCpaCache(cpaArchiveRepository)
             }
             registerHealthEndpoints(appMicrometerRegistry)
             cpaSync()
@@ -152,4 +153,18 @@ fun Route.resumeActivation(): Route =
         cpaActivationOn = true
         log.info("Resuming CPA activation task.")
         call.respond("CPA activation is ON")
+    }
+
+fun Route.testRefreshCpaCache(cpaArchiveRepository: CpaArchiveRepository): Route =
+    get("/api/refreshCpaCache") {
+        log.info("Calling CPA refresh.")
+        try {
+            val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+            cpaActivateService.refreshCache()
+            log.info("Called CPA refresh OK.")
+            call.respond("CPA refreshed")
+        } catch (e: Exception) {
+            log.error("Failed to refresh CPA", e)
+            call.respond("Failed to refresh CPA")
+        }
     }
