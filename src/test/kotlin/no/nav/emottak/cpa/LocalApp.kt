@@ -34,6 +34,7 @@ fun main() {
         log.info("CPA Repo entry: {}", entry)
     }
     val cpaRepoClient: HttpClient = mockCpaRepo()
+    val mockedEmottakAdminClient = mockk<HttpClient>()
 
     log.info("-----Setting up DUMMY NFS connector, containing hard coded file list")
     dummyNfsEntries.put("nav.qass.12345.xml", mockLsEntry("nav.qass.12345.xml", timestamp5minutesAgo.epochSecond.toInt()))
@@ -51,7 +52,8 @@ fun main() {
     GlobalScope.launchActivateCpaWithConnector(
         interval,
         nfsConnector,
-        cpaArchiveRepository
+        cpaArchiveRepository,
+        mockedEmottakAdminClient
     )
 
     val syncInterval = 40.seconds
@@ -63,13 +65,14 @@ fun main() {
     )
 
     log.info("----- Starting embedded server at port 8080")
-    embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository)).start(wait = true)
+    embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository, mockedEmottakAdminClient)).start(wait = true)
 }
 
 fun CoroutineScope.launchActivateCpaWithConnector(
     processInterval: Duration,
     nfsConnector: NFSConnector,
-    cpaArchiveRepository: CpaArchiveRepository
+    cpaArchiveRepository: CpaArchiveRepository,
+    emottakAdminClient: HttpClient
 ) {
     timer(
         name = "Activate CPA Timer",
@@ -80,7 +83,7 @@ fun CoroutineScope.launchActivateCpaWithConnector(
         launch(Dispatchers.IO) {
             log.info("----- Running CPA activate")
             try {
-                val cpaActivateService = CpaActivateService(nfsConnector, cpaArchiveRepository)
+                val cpaActivateService = CpaActivateService(nfsConnector, cpaArchiveRepository, emottakAdminClient)
                 cpaActivateService.activatePendingCpas()
             } catch (e: Exception) {
                 log.error("Failed to activate CPA", e)

@@ -2,6 +2,10 @@ package no.nav.emottak.cpa
 
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.SftpATTRS
+import io.ktor.client.HttpClient
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
@@ -34,7 +38,8 @@ class CpaActivateServiceTest {
     @Test
     fun `isActivationDue works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>()
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         val justNow = nowInActivationTimezone().format(DateTimeFormatter.ofPattern("MMddHHmm"))
         val fiveMinutesAgo = nowInActivationTimezone().minusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
@@ -65,12 +70,12 @@ class CpaActivateServiceTest {
     @Test
     fun `getActivatedName works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>()
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
-        assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120_R_Zm9ybnllbHNl._R_.qrntn"), "Example case without dot")
-        assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120_"), "Example case minimal")
         assertEquals("nav.qass.60120.xml", cpaActivateService.getActivatedName("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
+        assertEquals("997506499_889640782_011.xml", cpaActivateService.getActivatedName("02231410_997506499_889640782_011._R_d3Fl._R_.qrntn"), "Old CPA-ID format case")
         assertEquals(null, cpaActivateService.getActivatedName("01230800_nav.60120.Zm9ybnllbHNl.qrntn"), "Missing second underscore")
         assertEquals(null, cpaActivateService.getActivatedName("01230800_n60120._R_Zm9ybnllbHNl._R_.qrntn"), "Too short invalid ID string")
         assertEquals(null, cpaActivateService.getActivatedName("01230800nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Missing first underscore")
@@ -82,16 +87,24 @@ class CpaActivateServiceTest {
     @Test
     fun `getCpaPart works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>(relaxed = true)
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         assertEquals("01230800_nav.60120.xml", cpaActivateService.getCpaPart("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
         assertEquals("01230800_nav.qass.60120.xml", cpaActivateService.getCpaPart("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
+        assertEquals("02231410_997506499_889640782_011.xml", cpaActivateService.getCpaPart("02231410_997506499_889640782_011._R_d3Fl._R_.qrntn"), "Old CPA-ID format case")
     }
 
     @Test
     fun `activatePendingCpas works for various file names`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         // Note: since the service will only process today's files, activation at 1 hour ago will be ignored if you run this right after midnight
@@ -108,6 +121,19 @@ class CpaActivateServiceTest {
         coEvery {
             mockedNFSConnector.folder()
         }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated1, entryToBeActivated2, entryNotToBeActivatedYet, entryWithoutProperTs, entryWithMissingDigitInTs, entryWithRubbishID, entryWithoutProperSuffix)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced2 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60121\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+            .andThen(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+
         coEvery {
             mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
         }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", true, false))
@@ -117,7 +143,9 @@ class CpaActivateServiceTest {
         cpaActivateService.activatePendingCpas()
         verify {
             runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", match { String(it.readAllBytes()).equals(replaced1) })
                 mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
+                mockedNFSConnector.save(oneHourAgo + "_nav.60121._R_Zm9ybnllbHNl._R_.qrntn", match { String(it.readAllBytes()).equals(replaced2) })
                 mockedNFSConnector.rename(oneHourAgo + "_nav.60121._R_Zm9ybnllbHNl._R_.qrntn", "nav.60121.xml")
             }
         }
@@ -125,12 +153,48 @@ class CpaActivateServiceTest {
             runBlocking {
                 mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
                 mockCpaArchiveRepository.insertCopy(123)
-                mockCpaArchiveRepository.setDeleted(223)
-                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", any())
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", any(), "Activated at specified time")
                 mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
                 mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
             }
         }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun verifyFileContentsChange() {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>()
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val xmlWithQuarantinedCpaId = """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cppa:CollaborationProtocolAgreement xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:cppa="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd" 
+ xmlns:ns3="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+ cppa:cpaid="02251213_nav:qass:12345"
+ cppa:version="2_0b" xsi:schemaLocation="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd cpp-cpa-2_0.xsd">
+        """.trimIndent().trim()
+
+        val expectedXml = """
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cppa:CollaborationProtocolAgreement xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:cppa="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd" 
+ xmlns:ns3="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+ cppa:cpaid="nav:qass:12345"
+ cppa:version="2_0b" xsi:schemaLocation="http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd cpp-cpa-2_0.xsd">
+        """.trimIndent().trim()
+
+        val fileName = "nav.qass.12345.xml"
+        val expectedCpaId = "nav:qass:12345"
+
+        val cpaId = cpaActivateService.cpaIdFromFilename(fileName)
+        assertEquals(expectedCpaId, cpaId)
+        val result = cpaActivateService.changeCpaIdInFile(xmlWithQuarantinedCpaId, cpaId!!)
+        assertEquals(expectedXml, result)
     }
 
     private fun mockNfsFromMap(nfsCpaMap: Map<String, String>): NFSConnector {

@@ -43,7 +43,12 @@ class NFSConnector(
     fun folder(): Vector<ChannelSftp.LsEntry> =
         sftpChannel.ls(outboundCpa) as Vector<ChannelSftp.LsEntry>
 
-    fun file(filename: String): InputStream = sftpChannel.get(filename)
+    fun file(filename: String): InputStream = sftpChannel.get(outboundCpa + "/" + filename)
+
+    fun save(filename: String, bytes: InputStream) {
+        sftpChannel.put(bytes, outboundCpa + "/" + filename)
+        bytes.close()
+    }
 
     fun rename(from: String, to: String) {
         // Assume we just overwrite (and are allowed to) if tofile already exists
@@ -52,9 +57,8 @@ class NFSConnector(
 
     suspend fun copy(from: String, to: String) {
         // Assume we just overwrite (and are allowed to) if tofile already exists
-        val inputStream = sftpChannel.get(outboundCpa + "/" + from)
-        sftpChannel.put(inputStream, outboundCpa + "/" + to)
-        inputStream.close()
+        val inputStream = file(from)
+        save(to, inputStream)
     }
 
     override fun close() {

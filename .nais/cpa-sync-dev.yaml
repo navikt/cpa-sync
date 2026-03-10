@@ -70,3 +70,5 @@ spec:
       value: "true"
     - name: ACTIVATE_CPA_INTERVAL
       value: 5m
+    - name: CPA_REFRESH_URL
+      value: "https://wasapp-q.adeo.no/emottak-admin/cpa/refresh.htm"
