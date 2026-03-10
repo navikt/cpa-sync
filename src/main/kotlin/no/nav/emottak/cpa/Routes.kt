@@ -1,5 +1,6 @@
 package no.nav.emottak.cpa
 
+import io.ktor.client.HttpClient
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.get
@@ -46,11 +47,11 @@ fun Route.cpaSync(): Route = get("/cpa-sync") {
     call.respond(HttpStatusCode.Unauthorized, "Unauthorized")
 }
 
-fun Route.activateCpa(cpaArchiveRepository: CpaArchiveRepository): Route = get("/activate-cpa") {
+fun Route.activateCpa(cpaArchiveRepository: CpaArchiveRepository, emottakAdminClient: HttpClient): Route = get("/activate-cpa") {
     val log = LoggerFactory.getLogger("no.nav.emottak.cpa.sync")
     log.info("Starting CPA activation")
     withContext(Dispatchers.IO) {
-        val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+        val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository, emottakAdminClient)
         cpaActivateService.activatePendingCpas()
         call.respond(HttpStatusCode.OK, "CPA activation completed")
     }

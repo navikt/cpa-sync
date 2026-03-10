@@ -15,6 +15,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -88,6 +89,10 @@ fun getCpaRepoAuthenticatedClient(): HttpClient {
         }
         installCpaRepoAuthentication()
     }
+}
+
+suspend fun HttpClient.refreshCpas(url: String): HttpResponse {
+    return this.get(url)
 }
 
 fun HttpClientConfig<*>.installCpaRepoAuthentication() {

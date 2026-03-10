@@ -2,6 +2,7 @@ package no.nav.emottak.cpa
 
 import dev.reformator.stacktracedecoroutinator.runtime.DecoroutinatorRuntime
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -38,6 +39,7 @@ fun main() {
     // }
 
     val cpaRepoClient = getCpaRepoAuthenticatedClient()
+    val emottakAdminClient = HttpClient(CIO)
     val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
     val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))
 
@@ -50,7 +52,8 @@ fun main() {
     GlobalScope.launchActivateCpa(
         5.seconds,
         activateCpaInterval,
-        cpaArchiveRepository
+        cpaArchiveRepository,
+        emottakAdminClient
     )
     GlobalScope.launchSyncCpa(
         5.seconds,
@@ -58,12 +61,12 @@ fun main() {
         cpaRepoClient
     )
 
-    embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository)).start(wait = true)
+    embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository, emottakAdminClient)).start(wait = true)
 }
 
 internal val log = LoggerFactory.getLogger("no.nav.emottak.cpa")
 
-fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application.() -> Unit {
+fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository, emottakAdminClient: HttpClient): Application.() -> Unit {
     return {
         install(ContentNegotiation) {
             json()
@@ -76,11 +79,11 @@ fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository): Application
             if (!isProdEnv()) {
                 testAzureAuthToCpaRepo()
                 testDbRead(cpaArchiveRepository)
-                testRefreshCpaCache(cpaArchiveRepository)
+                testRefreshCpaCache(cpaArchiveRepository, emottakAdminClient)
             }
             registerHealthEndpoints(appMicrometerRegistry)
             cpaSync()
-            activateCpa(cpaArchiveRepository)
+            activateCpa(cpaArchiveRepository, emottakAdminClient)
             pauseActivation()
             resumeActivation()
         }
@@ -116,7 +119,8 @@ var cpaActivationOn = getEnvVar("RUN_ACTIVATE_CPA", "false").toBoolean()
 fun CoroutineScope.launchActivateCpa(
     startupDelay: Duration,
     processInterval: Duration,
-    cpaArchiveRepository: CpaArchiveRepository
+    cpaArchiveRepository: CpaArchiveRepository,
+    emottakAdminClient: HttpClient
 ) {
     timer(
         name = "Activate CPA Timer",
@@ -131,7 +135,7 @@ fun CoroutineScope.launchActivateCpa(
                     log.info("CPA activation task is OFF.")
                     return@launch
                 }
-                val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+                val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository, emottakAdminClient)
                 cpaActivateService.activatePendingCpas()
                 log.info("----- Done: Activate CPA")
             } catch (e: Exception) {
@@ -155,11 +159,11 @@ fun Route.resumeActivation(): Route =
         call.respond("CPA activation is ON")
     }
 
-fun Route.testRefreshCpaCache(cpaArchiveRepository: CpaArchiveRepository): Route =
+fun Route.testRefreshCpaCache(cpaArchiveRepository: CpaArchiveRepository, emottakAdminClient: HttpClient): Route =
     get("/api/refreshCpaCache") {
         log.info("Calling CPA refresh.")
         try {
-            val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository)
+            val cpaActivateService = CpaActivateService(NFSConnector(), cpaArchiveRepository, emottakAdminClient)
             cpaActivateService.refreshCache()
             log.info("Called CPA refresh OK.")
             call.respond("CPA refreshed")

@@ -2,9 +2,8 @@ package no.nav.emottak.cpa
 
 import com.jcraft.jsch.ChannelSftp
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import no.nav.emottak.utils.environment.getEnvVar
@@ -23,14 +22,26 @@ data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
 const val QUARANTINE_SUFFIX = ".qrntn"
 val ACTIVATION_TIMEZONE = ZoneId.of("Europe/Oslo")
 
-class CpaActivateService(private val nfsConnector: NFSConnector, private val cpaArchiveRepository: CpaArchiveRepository) {
+val CPA_REFRESH_URL = getEnvVar("CPA_REFRESH_URL", "http://dummy")
+
+class CpaActivateService(private val nfsConnector: NFSConnector, private val cpaArchiveRepository: CpaArchiveRepository, private val emottakAdminClient: HttpClient) {
     private val log: Logger = LoggerFactory.getLogger("no.nav.emottak.smtp.cpasync")
 
     suspend fun activatePendingCpas() {
+        var countActivated = 0
         nfsConnector.use { connector ->
             connector.folder().asSequence()
                 .filter { entry -> isFileEntryToBeActivated(entry) }
-                .forEach { entry -> activate(connector, entry, cpaArchiveRepository) }
+                .forEach {
+                        entry ->
+                    activate(connector, entry, cpaArchiveRepository)
+                    countActivated++
+                }
+        }
+        // NB: DB-transaksjonen for endringene over må være committet FØR refresh-logikken i admin kjører, ellers får den ikke med seg endringene
+        log.info("Activated $countActivated CPA(s)")
+        if (countActivated > 0) {
+            refreshCache()
         }
     }
 
@@ -88,13 +99,14 @@ Eksempel på CPP_ID fra admin: nav.K148586.20260217101115, MOTTAK_ID: 2602160959
     }
 
     internal suspend fun refreshCache() {
-        val url = getEnvVar("CPA_REFRESH_URL", "https://wasapp-q.adeo.no/emottak-admin/cpa/refresh.htm")
-        log.info("Trying get from url: $url")
-        val client = HttpClient(CIO)
-        val response = client.get(url)
-        log.info("Response status: " + response.status.description)
-        log.info("Response body: " + response.bodyAsText())
-        client.close()
+        log.info("Refreshing CPA cache in EMOTTAK ADMIN, using url: $CPA_REFRESH_URL")
+        val response = emottakAdminClient.refreshCpas(CPA_REFRESH_URL)
+
+        if (response.status != HttpStatusCode.OK) {
+            log.warn("Got unexpected HTTP status ${response.status.description} and response ${response.bodyAsText()}")
+        } else {
+            log.info("CPA refresh was called successfully")
+        }
     }
 
     internal suspend fun activateAtFilesystem(connector: NFSConnector, entry: ChannelSftp.LsEntry) {

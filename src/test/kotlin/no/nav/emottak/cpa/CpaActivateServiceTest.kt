@@ -2,6 +2,10 @@ package no.nav.emottak.cpa
 
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.SftpATTRS
+import io.ktor.client.HttpClient
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.every
@@ -34,7 +38,8 @@ class CpaActivateServiceTest {
     @Test
     fun `isActivationDue works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>()
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         val justNow = nowInActivationTimezone().format(DateTimeFormatter.ofPattern("MMddHHmm"))
         val fiveMinutesAgo = nowInActivationTimezone().minusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
@@ -65,7 +70,8 @@ class CpaActivateServiceTest {
     @Test
     fun `getActivatedName works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>()
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
         assertEquals("nav.qass.60120.xml", cpaActivateService.getActivatedName("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
@@ -81,7 +87,8 @@ class CpaActivateServiceTest {
     @Test
     fun `getCpaPart works for various cases`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>(relaxed = true)
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         assertEquals("01230800_nav.60120.xml", cpaActivateService.getCpaPart("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
         assertEquals("01230800_nav.qass.60120.xml", cpaActivateService.getCpaPart("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
@@ -91,7 +98,13 @@ class CpaActivateServiceTest {
     @Test
     fun `activatePendingCpas works for various file names`() = runBlocking {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         // Note: since the service will only process today's files, activation at 1 hour ago will be ignored if you run this right after midnight
@@ -146,12 +159,18 @@ class CpaActivateServiceTest {
                 mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
             }
         }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
     }
 
     @Test
     fun verifyFileContentsChange() {
         val mockedNFSConnector = mockNfsFromMap(emptyMap())
-        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository))
+        val mockedEmottakAdminClient = mockk<HttpClient>()
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         val xmlWithQuarantinedCpaId = """
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>

@@ -1,6 +1,7 @@
 package no.nav.emottak.cpa.persistence
 
 import com.jcraft.jsch.ChannelSftp
+import io.ktor.client.HttpClient
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -103,7 +104,8 @@ class CpaArchiveRepositoryTest {
     fun testCompleteActivationSequence() = runBlocking {
         runSqlScript("/cpa_activatecase_data.sql")
         val nfsMock: NFSConnector = mockk()
-        val cpaActivateService = CpaActivateService(nfsMock, repo!!)
+        val httpMock = mockk<HttpClient>()
+        val cpaActivateService = CpaActivateService(nfsMock, repo!!, httpMock)
         val fileEntry: ChannelSftp.LsEntry = mockk { every { filename } returns "02101500_nav.12345._R_Zm9ybnllbHNl._R_.qrntn" }
         cpaActivateService.activateInDb(fileEntry, repo!!)
         var count: Int? = null
@@ -135,8 +137,6 @@ class CpaArchiveRepositoryTest {
             }
         }
         return@runBlocking
-//        assertEquals(101, onlyOne?.id, "New record with new ID")
-//        assertEquals("onlyOne", onlyOne?.cpaId, "New record for CPA")
     }
 
     fun runSqlScript(path: String) {
