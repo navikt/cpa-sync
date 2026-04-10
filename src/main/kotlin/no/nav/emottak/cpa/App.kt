@@ -58,7 +58,6 @@ fun main() {
     GlobalScope.launchSyncCpa(
         5.seconds,
         syncCpaInterval,
-        cpaRepoClient
     )
 
     embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository, emottakAdminClient)).start(wait = true)
@@ -92,8 +91,7 @@ fun myApplicationModule(cpaArchiveRepository: CpaArchiveRepository, emottakAdmin
 
 fun CoroutineScope.launchSyncCpa(
     startupDelay: Duration,
-    processInterval: Duration,
-    cpaRepoClient: HttpClient
+    processInterval: Duration
 ) {
     timer(
         name = "Sync CPA Timer",
@@ -102,14 +100,7 @@ fun CoroutineScope.launchSyncCpa(
         daemon = true
     ) {
         launch(Dispatchers.IO) {
-            log.info("----- Running task: Sync CPA")
-            try {
-                val cpaSyncService = CpaSyncService(cpaRepoClient, NFSConnector())
-                cpaSyncService.sync()
-                log.info("----- Done: Sync CPA")
-            } catch (e: Exception) {
-                log.error("Failed task: Sync CPA", e)
-            }
+            doCpaSync()
         }
     }
 }
