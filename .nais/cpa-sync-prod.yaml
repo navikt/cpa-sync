@@ -64,5 +64,9 @@ spec:
       value: jdbc:oracle:thin:@dmv28-scan.adeo.no:1521/emottak_ha
     - name: EMOTTAK_DB_SECRET_PATH
       value: /secret/emottak_db
+    - name: RUN_ACTIVATE_CPA
+      value: "true"
+    - name: ACTIVATE_CPA_INTERVAL
+      value: 10m
     - name: CPA_REFRESH_URL
       value: "https://wasapp.adeo.no/emottak-admin/cpa/refresh.htm"
