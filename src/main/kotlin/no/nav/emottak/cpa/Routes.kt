@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory
 var TIMEOUT_EXCEPTION_COUNTER = 0
 
 val doCpaSync: suspend () -> Result<Unit> =
-    suspend {
+    {
         withContext(Dispatchers.IO) {
             log.info("Starting CPA sync")
             val (result, duration) = measureTimeSuspended {
