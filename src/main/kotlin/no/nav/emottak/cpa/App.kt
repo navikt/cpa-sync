@@ -57,7 +57,7 @@ fun main() {
     )
     GlobalScope.launchSyncCpa(
         5.seconds,
-        syncCpaInterval,
+        syncCpaInterval
     )
 
     embeddedServer(Netty, port = 8080, module = myApplicationModule(cpaArchiveRepository, emottakAdminClient)).start(wait = true)

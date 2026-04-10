@@ -18,7 +18,6 @@ import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.slf4j.LoggerFactory
 
-
 var TIMEOUT_EXCEPTION_COUNTER = 0
 
 val doCpaSync: suspend () -> Result<Unit> =
