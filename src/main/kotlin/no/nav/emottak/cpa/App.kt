@@ -3,6 +3,7 @@ package no.nav.emottak.cpa
 import dev.reformator.stacktracedecoroutinator.runtime.DecoroutinatorRuntime
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -106,7 +107,10 @@ fun CoroutineScope.launchSyncCpa(
             try {
                 val cpaSyncService = CpaSyncService(cpaRepoClient, NFSConnector())
                 cpaSyncService.sync()
+                TIMEOUT_EXCEPTION_COUNTER = 0
                 log.info("----- Done: Sync CPA")
+            } catch (e: ConnectTimeoutException) {
+                log.error("ConnectionTimeout (${TIMEOUT_EXCEPTION_COUNTER++} times in a row)", e)
             } catch (e: Exception) {
                 log.error("Failed task: Sync CPA", e)
             }
