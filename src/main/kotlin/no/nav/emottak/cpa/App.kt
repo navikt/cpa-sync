@@ -107,10 +107,10 @@ fun CoroutineScope.launchSyncCpa(
             try {
                 val cpaSyncService = CpaSyncService(cpaRepoClient, NFSConnector())
                 cpaSyncService.sync()
-                TIMEOUT_EXCEPTION_COUNTER = 0
+                TIMEOUT_EXCEPTION_COUNTER.set(0)
                 log.info("----- Done: Sync CPA")
             } catch (e: ConnectTimeoutException) {
-                log.error("ConnectionTimeout (${TIMEOUT_EXCEPTION_COUNTER++} times in a row)", e)
+                log.error("ConnectionTimeout (${TIMEOUT_EXCEPTION_COUNTER.incrementAndGet()} times in a row)", e)
             } catch (e: Exception) {
                 log.error("Failed task: Sync CPA", e)
             }
