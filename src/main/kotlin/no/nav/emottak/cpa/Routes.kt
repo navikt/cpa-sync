@@ -17,8 +17,9 @@ import kotlinx.coroutines.withContext
 import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicInteger
 
-var TIMEOUT_EXCEPTION_COUNTER = 0
+var TIMEOUT_EXCEPTION_COUNTER = AtomicInteger(0)
 
 val doCpaSync: suspend () -> Result<Unit> =
     {
@@ -32,12 +33,12 @@ val doCpaSync: suspend () -> Result<Unit> =
             }
             result.onSuccess {
                 log.info("CPA sync completed in $duration")
-                TIMEOUT_EXCEPTION_COUNTER = 0
+                TIMEOUT_EXCEPTION_COUNTER.set(0)
             }.onFailure {
                 when (it) {
                     // flere feilhåndteringer pga. vi ikke er sikre på hvilken timeout er det.
                     is HttpRequestTimeoutException, is ConnectTimeoutException -> log.error("Timeout exception", it)
-                        .also { TIMEOUT_EXCEPTION_COUNTER++ }
+                        .also { TIMEOUT_EXCEPTION_COUNTER.incrementAndGet() }
                     else -> log.error(it.message, it)
                 }
             }
@@ -82,7 +83,7 @@ fun Route.testDbRead(cpaArchiveRepository: CpaArchiveRepository): Route = get("/
 
 fun Routing.registerHealthEndpoints(collectorRegistry: PrometheusMeterRegistry) {
     get("/internal/health/liveness") {
-        if (TIMEOUT_EXCEPTION_COUNTER > 5) { // TODO : årsak ukjent, cpa-repo/timestamps endepunkt timer ut etter en stund
+        if (TIMEOUT_EXCEPTION_COUNTER.get() > 5) { // TODO : årsak ukjent, cpa-repo/timestamps endepunkt timer ut etter en stund
             log.warn("CPA sync needs restart!")
             call.respond(HttpStatusCode.ServiceUnavailable, "Restart me X_X")
         } else {
