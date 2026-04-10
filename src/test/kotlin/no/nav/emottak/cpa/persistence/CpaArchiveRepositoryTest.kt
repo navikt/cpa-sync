@@ -107,7 +107,7 @@ class CpaArchiveRepositoryTest {
         val httpMock = mockk<HttpClient>()
         val cpaActivateService = CpaActivateService(nfsMock, repo!!, httpMock)
         val fileEntry: ChannelSftp.LsEntry = mockk { every { filename } returns "02101500_nav.12345._R_Zm9ybnllbHNl._R_.qrntn" }
-        cpaActivateService.activateInDb(fileEntry, repo!!)
+        cpaActivateService.activateInDb(fileEntry, repo!!, CpaActivateService.ExistingCpaStatus.IS_NOT_IN_QUARANTINE)
         var count: Int? = null
         transaction {
             exec("select count(*) from partner_cpa") { rs ->

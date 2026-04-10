@@ -55,6 +55,23 @@ class NFSConnector(
         sftpChannel.rename(outboundCpa + "/" + from, outboundCpa + "/" + to)
     }
 
+    fun exists(filename: String): Boolean {
+        try {
+            sftpChannel.stat(outboundCpa + "/" + filename)
+            return true
+        } catch (e: Exception) {
+            return false
+        }
+    }
+
+    fun filesMatchingName(query: String): Vector<ChannelSftp.LsEntry> {
+        try {
+            return sftpChannel.ls(outboundCpa + "/" + query) as Vector<ChannelSftp.LsEntry>
+        } catch (e: Exception) {
+            return Vector<ChannelSftp.LsEntry>()
+        }
+    }
+
     suspend fun copy(from: String, to: String) {
         // Assume we just overwrite (and are allowed to) if tofile already exists
         val inputStream = file(from)

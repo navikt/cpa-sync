@@ -67,13 +67,13 @@ MAIL_RECEIVER, VALID_FROM, VALID_TO, CPP, CPA, ISSUER_NONREP, SERIALNO_NONREP, V
 SERIALNO_DATAENC, VALIDTO_DATAENC, ISSUER_SSL, SERIALNO_SSL, VALIDTO_SSL, DELETED, 'cpa-activate', QUARANTINED, REASON
  from partner_cpa_archive where id = 
 """
-    suspend fun setAsNewCpa(id: Int, useCpaId: String, cppAndMottaksId: String, newReason: String) = withContext(Dispatchers.IO) {
+    suspend fun setAsNewCpa(id: Int, useCpaId: String, isQuarantined: Boolean, cppAndMottaksId: String, newReason: String) = withContext(Dispatchers.IO) {
         transaction(database) {
             CpaArchiveTable.update({
                 CpaArchiveTable.id eq id
             }) {
                 it[cpaId] = useCpaId
-                it[quarantined] = false
+                it[quarantined] = isQuarantined
                 it[deleted] = false
                 it[partnerCppId] = cppAndMottaksId
                 it[mottakId] = cppAndMottaksId
@@ -82,7 +82,6 @@ SERIALNO_DATAENC, VALIDTO_DATAENC, ISSUER_SSL, SERIALNO_SSL, VALIDTO_SSL, DELETE
         }
     }
 
-    // todo funker hvis CPA finnes fra før. Må gjøre insert ellers
     suspend fun updateFromArchive(cpaId: String, id: Int) = withContext(Dispatchers.IO) {
         transaction(database) {
             exec(
@@ -93,6 +92,22 @@ SERIALNO_DATAENC, VALIDTO_DATAENC, ISSUER_SSL, SERIALNO_SSL, VALIDTO_SSL, DELETE
                     "PARTNER_SUBJECTDN = (select PARTNER_SUBJECTDN from partner_cpa_archive where id = $id ), " +
                     "PARTNER_ENDPOINT = (select PARTNER_ENDPOINT from partner_cpa_archive where id = $id ) " +
                     "where CPA_ID = '$cpaId' "
+            )
+        }
+    }
+
+    suspend fun insertFromArchive(cpaId: String, id: Int) = withContext(Dispatchers.IO) {
+        transaction(database) {
+            exec(
+                "insert into partner_cpa (CPA_ID, PARTNER_ID, NAV_CPP_ID, PARTNER_CPP_ID, PARTNER_SUBJECTDN, PARTNER_ENDPOINT) " +
+                    "values (" +
+                    "'$cpaId', " +
+                    "(select PARTNER_ID from partner_cpa_archive where id = $id ), " +
+                    "(select NAV_CPP_ID from partner_cpa_archive where id = $id) , " +
+                    "(select PARTNER_CPP_ID from partner_cpa_archive where id = $id ), " +
+                    "(select PARTNER_SUBJECTDN from partner_cpa_archive where id = $id ), " +
+                    "(select PARTNER_ENDPOINT from partner_cpa_archive where id = $id ) " +
+                    ")"
             )
         }
     }
