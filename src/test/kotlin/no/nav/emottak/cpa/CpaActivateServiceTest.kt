@@ -45,6 +45,7 @@ class CpaActivateServiceTest {
         val fiveMinutesAgo = nowInActivationTimezone().minusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         val inFiveMinutes = nowInActivationTimezone().plusMinutes(5).format(DateTimeFormatter.ofPattern("MMddHHmm"))
         assertEquals(true, cpaActivateService.isActivationDue(justNow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation just now")
+        assertEquals(true, cpaActivateService.isActivationDue(justNow + "_nav.60120.xml"), "Activation just now, not in quarantine")
         assertEquals(true, cpaActivateService.isActivationDue(fiveMinutesAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation five minutes ago")
         assertEquals(false, cpaActivateService.isActivationDue(inFiveMinutes + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in five minutes")
 
@@ -76,7 +77,7 @@ class CpaActivateServiceTest {
         assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
         assertEquals("nav.qass.60120.xml", cpaActivateService.getActivatedName("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
         assertEquals("997506499_889640782_011.xml", cpaActivateService.getActivatedName("02231410_997506499_889640782_011._R_d3Fl._R_.qrntn"), "Old CPA-ID format case")
-        assertEquals(null, cpaActivateService.getActivatedName("01230800_nav.60120.Zm9ybnllbHNl.qrntn"), "Missing second underscore")
+        assertEquals("nav.60120.xml", cpaActivateService.getActivatedName("01230800_nav.60120.xml"), "Not in quarantine")
         assertEquals(null, cpaActivateService.getActivatedName("01230800_n60120._R_Zm9ybnllbHNl._R_.qrntn"), "Too short invalid ID string")
         assertEquals(null, cpaActivateService.getActivatedName("01230800nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Missing first underscore")
         assertEquals(null, cpaActivateService.getActivatedName("01230800nav.60120.Zm9ybnllbHNl.qrntn"), "No underscores")
@@ -91,6 +92,7 @@ class CpaActivateServiceTest {
         val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
 
         assertEquals("01230800_nav.60120.xml", cpaActivateService.getCpaPart("01230800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Example case")
+        assertEquals("01230800_nav.60120.xml", cpaActivateService.getCpaPart("01230800_nav.60120.xml"), "Not in quarantine")
         assertEquals("01230800_nav.qass.60120.xml", cpaActivateService.getCpaPart("01230800_nav.qass.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Preprod case")
         assertEquals("02231410_997506499_889640782_011.xml", cpaActivateService.getCpaPart("02231410_997506499_889640782_011._R_d3Fl._R_.qrntn"), "Old CPA-ID format case")
     }
@@ -133,6 +135,9 @@ class CpaActivateServiceTest {
         coEvery {
             mockedNFSConnector.save(any(), any())
         }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(true)
 
         coEvery {
             mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
@@ -154,8 +159,386 @@ class CpaActivateServiceTest {
                 mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
                 mockCpaArchiveRepository.insertCopy(123)
                 mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
-                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", any(), "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", false, any(), "Activated at specified time")
                 mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
+            }
+        }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun `activatePendingCpas works for case 1 - existing CPA not in quarantine, scheduled CPA not in quarantine`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val entryToBeActivated = mockLsEntry(oneMinuteAgo + "_nav.60120.xml", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(true)
+
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", false, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", false, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", false, false))
+
+        cpaActivateService.activatePendingCpas()
+        verify {
+            runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120.xml", match { String(it.readAllBytes()).equals(replaced1) })
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120.xml", "nav.60120.xml")
+            }
+        }
+        verify {
+            runBlocking {
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", false, any(), "Activated at specified time")
+                mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
+            }
+        }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun `activatePendingCpas works for case 2 - existing CPA not in quarantine, scheduled CPA in quarantine`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val entryToBeActivated = mockLsEntry(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(true)
+
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", true, false))
+
+        cpaActivateService.activatePendingCpas()
+        verify {
+            runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", match { String(it.readAllBytes()).equals(replaced1) })
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
+            }
+        }
+        verify {
+            runBlocking {
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", false, any(), "Activated at specified time")
+                mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
+            }
+        }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun `activatePendingCpas works for case 3 - existing CPA in quarantine, scheduled CPA not in quarantine`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val entryToBeActivated = mockLsEntry(oneMinuteAgo + "_nav.60120.xml", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(false)
+
+        val existingEntry = mockLsEntry("nav.60120._R_existing._R_.qrntn", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.filesMatchingName("nav.60120*.qrntn")
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(existingEntry)))
+
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", false, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", false, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", false, false))
+
+        cpaActivateService.activatePendingCpas()
+        verify {
+            runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120.xml", match { String(it.readAllBytes()).equals(replaced1) })
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120.xml", "nav.60120._R_existing._R_.qrntn")
+            }
+        }
+        verify {
+            runBlocking {
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", true, any(), "Activated at specified time")
+                mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
+            }
+        }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun `activatePendingCpas works for case 4 - existing CPA in quarantine, scheduled CPA in quarantine`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val entryToBeActivated = mockLsEntry(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(false)
+
+        val existingEntry = mockLsEntry("nav.60120._R_existing._R_.qrntn", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.filesMatchingName("nav.60120*.qrntn")
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(existingEntry)))
+
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", true, false))
+
+        cpaActivateService.activatePendingCpas()
+        verify {
+            runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", match { String(it.readAllBytes()).equals(replaced1) })
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120._R_existing._R_.qrntn")
+            }
+        }
+        verify {
+            runBlocking {
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", true, any(), "Activated at specified time")
+                mockCpaArchiveRepository.updateFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
+            }
+        }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun `activatePendingCpas works for case 5 - no existing CPA, scheduled CPA not in quarantine`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val entryToBeActivated = mockLsEntry(oneMinuteAgo + "_nav.60120.xml", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(false)
+
+        coEvery {
+            mockedNFSConnector.filesMatchingName("nav.60120*.qrntn")
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf()))
+
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", false, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", false, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", false, false))
+
+        cpaActivateService.activatePendingCpas()
+        verify {
+            runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120.xml", match { String(it.readAllBytes()).equals(replaced1) })
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120.xml", "nav.60120.xml")
+            }
+        }
+        verify {
+            runBlocking {
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", false, any(), "Activated at specified time")
+                mockCpaArchiveRepository.insertFromArchive("nav:60120", 323)
+                mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
+            }
+        }
+        verify {
+            runBlocking {
+                mockedEmottakAdminClient.refreshCpas("http://dummy")
+            }
+        }
+    }
+
+    @Test
+    fun `activatePendingCpas works for case 6 - no existing CPA, scheduled CPA in quarantine`() = runBlocking {
+        val mockedNFSConnector = mockNfsFromMap(emptyMap())
+        val mockedEmottakAdminClient = mockk<HttpClient>() {
+            coEvery { refreshCpas(any()) } returns mockk<HttpResponse>() {
+                coEvery { bodyAsText() } returns "OK"
+                coEvery { status } returns HttpStatusCode.OK
+            }
+        }
+        val cpaActivateService = spyk(CpaActivateService(mockedNFSConnector, mockCpaArchiveRepository, mockedEmottakAdminClient))
+
+        val oneMinuteAgo = nowInActivationTimezone().minusMinutes(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        val entryToBeActivated = mockLsEntry(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "2025-01-01T00:00:00Z")
+        coEvery {
+            mockedNFSConnector.folder()
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf(entryToBeActivated)))
+
+        val someDummyFileContentsWithCpaIdInIt = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"TO_BE_REPLACED\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        val replaced1 = "sbjjdsajfbbjhadsbjh cppa:cpaid=\"nav:60120\" bxzcvbmnbmnbxvzcmnbnxbvzcnb"
+        coEvery {
+            mockedNFSConnector.file(any())
+        }.returns(ByteArrayInputStream(someDummyFileContentsWithCpaIdInIt.toByteArray()))
+
+        coEvery {
+            mockedNFSConnector.save(any(), any())
+        }.returns(Unit)
+        coEvery {
+            mockedNFSConnector.exists(any())
+        }.returns(false)
+
+        coEvery {
+            mockedNFSConnector.filesMatchingName("nav.60120*.qrntn")
+        }.returns(Vector<ChannelSftp.LsEntry>(listOf()))
+
+        coEvery {
+            mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+        }.returns(ArchivedCpa(123, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(223, oneMinuteAgo + "_nav:60120", true, false))
+            .andThen(ArchivedCpa(323, oneMinuteAgo + "_nav:60120", true, false))
+
+        cpaActivateService.activatePendingCpas()
+        verify {
+            runBlocking {
+                mockedNFSConnector.save(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", match { String(it.readAllBytes()).equals(replaced1) })
+                mockedNFSConnector.rename(oneMinuteAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn", "nav.60120.xml")
+            }
+        }
+        verify {
+            runBlocking {
+                mockCpaArchiveRepository.findLatestByCpaId(oneMinuteAgo + "_nav:60120")
+                mockCpaArchiveRepository.insertCopy(123)
+                mockCpaArchiveRepository.setDeleted(223, "Activated at specified time")
+                mockCpaArchiveRepository.setAsNewCpa(323, "nav:60120", false, any(), "Activated at specified time")
+                mockCpaArchiveRepository.insertFromArchive("nav:60120", 323)
                 mockCpaArchiveRepository.deleteTmpCpa(oneMinuteAgo + "_nav:60120")
             }
         }
