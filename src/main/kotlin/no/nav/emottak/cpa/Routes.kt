@@ -17,33 +17,42 @@ import kotlinx.coroutines.withContext
 import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicInteger
 
-fun Route.cpaSync(): Route = get("/cpa-sync") {
-    val log = LoggerFactory.getLogger("no.nav.emottak.cpa.sync")
-    val cpaSyncService = CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
+var TIMEOUT_EXCEPTION_COUNTER = AtomicInteger(0)
 
-    withContext(Dispatchers.IO) {
-        log.info("Starting CPA sync")
-        val (result, duration) = measureTimeSuspended {
-            runCatching {
-                cpaSyncService.sync()
+val doCpaSync: suspend () -> Result<Unit> =
+    {
+        withContext(Dispatchers.IO) {
+            log.info("Starting CPA sync")
+            val (result, duration) = measureTimeSuspended {
+                runCatching {
+                    CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
+                        .sync()
+                }
             }
-        }
-        result.onSuccess {
-            log.info("CPA sync completed in $duration")
-            TIMEOUT_EXCEPTION_COUNTER = 0
-            call.respond(HttpStatusCode.OK, "CPA sync complete")
-        }.onFailure {
-            when (it) {
-                // flere feilhåndteringer pga. vi ikke er sikre på hvilken timeout er det.
-                is HttpRequestTimeoutException, is ConnectTimeoutException -> log.error("Timeout exception", it)
-                    .also { TIMEOUT_EXCEPTION_COUNTER++ }
-                else -> log.error(it.message, it)
+            result.onSuccess {
+                log.info("CPA sync completed in $duration")
+                TIMEOUT_EXCEPTION_COUNTER.set(0)
+            }.onFailure {
+                when (it) {
+                    // flere feilhåndteringer pga. vi ikke er sikre på hvilken timeout er det.
+                    is HttpRequestTimeoutException, is ConnectTimeoutException -> log.error("Timeout exception", it)
+                        .also { TIMEOUT_EXCEPTION_COUNTER.incrementAndGet() }
+                    else -> log.error(it.message, it)
+                }
             }
-            call.respond(HttpStatusCode.InternalServerError, "Something went wrong")
         }
     }
 
+fun Route.cpaSync(doSync: suspend () -> Result<Unit> = doCpaSync): Route = get("/cpa-sync") {
+    doSync()
+        .onSuccess {
+            call.respond(HttpStatusCode.OK, "CPA sync complete")
+        }
+        .onFailure {
+            call.respond(HttpStatusCode.InternalServerError, "Something went wrong")
+        }
     call.respond(HttpStatusCode.Unauthorized, "Unauthorized")
 }
 
@@ -72,10 +81,9 @@ fun Route.testDbRead(cpaArchiveRepository: CpaArchiveRepository): Route = get("/
     )
 }
 
-var TIMEOUT_EXCEPTION_COUNTER = 0
 fun Routing.registerHealthEndpoints(collectorRegistry: PrometheusMeterRegistry) {
     get("/internal/health/liveness") {
-        if (TIMEOUT_EXCEPTION_COUNTER > 5) { // TODO : årsak ukjent, cpa-repo/timestamps endepunkt timer ut etter en stund
+        if (TIMEOUT_EXCEPTION_COUNTER.get() > 5) { // TODO : årsak ukjent, cpa-repo/timestamps endepunkt timer ut etter en stund
             log.warn("CPA sync needs restart!")
             call.respond(HttpStatusCode.ServiceUnavailable, "Restart me X_X")
         } else {
