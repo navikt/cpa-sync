@@ -18,8 +18,12 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         return runCatching {
             val dbCpaMap = cpaRepoClient.getCPATimestamps()
             val nfsCpaMap = getNfsCpaMap()
-            upsertFreshCpa(nfsCpaMap, dbCpaMap)
-            deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
+            if (nfsCpaMap.isNotEmpty()) {
+                upsertFreshCpa(nfsCpaMap, dbCpaMap)
+                deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
+            } else {
+                log.warn("No CPAs found in NFS. This is odd.")
+            }
         }.onFailure {
             logFailure(it)
         }.getOrThrow()

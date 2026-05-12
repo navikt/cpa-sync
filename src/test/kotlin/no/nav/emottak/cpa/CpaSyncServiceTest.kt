@@ -325,6 +325,23 @@ class CpaSyncServiceTest {
     }
 
     @Test
+    fun `sync should skip upsert and delete when NFS returns empty list`() = runBlocking {
+        val dbCpa = mapOf(
+            "nav:qass:12345" to "2024-01-01T00:00:00Z",
+            "nav:qass:67890" to "2024-01-01T00:00:00Z"
+        )
+
+        val mockNfs = mockNfsFromMap(emptyMap())
+        mockCpaRepoFromMap(dbCpa)
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        coVerify(exactly = 0) { mockCpaRepoClient.putCPAinCPARepo(any(), any()) }
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo(any()) }
+    }
+
+    @Test
     fun `sync should handle SftpException`() = runBlocking {
         val expectedSftpException = SftpException(4, "SFTP error")
         coEvery { mockCpaRepoClient.getCPATimestamps() } throws expectedSftpException
