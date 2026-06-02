@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
     branches:
       - main
+  push:
+    branches:
+      - main
+
 env:
   MODULE_NAME: "cpa-sync"
   NAIS_MANIFEST: "cpa-sync-prod.yaml"
