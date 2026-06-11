@@ -15,6 +15,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.absoluteValue
 
 data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
 
@@ -80,10 +81,13 @@ class CpaActivateService(private val nfsConnector: NFSConnector, private val cpa
         try {
             val activationMonth = filename.substring(0, 2).toInt()
             val thisMonth = Instant.now().atZone(ACTIVATION_TIMEZONE).monthValue
-            if (activationMonth < thisMonth) {
+            val diffMonths = (thisMonth - activationMonth).absoluteValue
+            if (activationMonth < thisMonth && diffMonths < 6 ||
+                activationMonth > thisMonth && diffMonths > 6
+            ) {
                 return true
             }
-            if (activationMonth > thisMonth) {
+            if (activationMonth != thisMonth) {
                 return false
             }
 
