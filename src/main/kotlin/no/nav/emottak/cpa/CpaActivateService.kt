@@ -15,6 +15,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.absoluteValue
 
 data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
 
@@ -79,11 +80,26 @@ class CpaActivateService(private val nfsConnector: NFSConnector, private val cpa
         }
         try {
             val activationMonth = filename.substring(0, 2).toInt()
-            val activationDayOfMonth = filename.substring(2, 4).toInt()
-            val today = Instant.now().atZone(ACTIVATION_TIMEZONE).toLocalDate()
-            if (activationMonth != today.monthValue || activationDayOfMonth != today.dayOfMonth) {
+            val thisMonth = Instant.now().atZone(ACTIVATION_TIMEZONE).monthValue
+            val diffMonths = (thisMonth - activationMonth).absoluteValue
+            if (activationMonth < thisMonth && diffMonths < 6 ||
+                activationMonth > thisMonth && diffMonths > 6
+            ) {
+                return true
+            }
+            if (activationMonth != thisMonth) {
                 return false
             }
+
+            val activationDayOfMonth = filename.substring(2, 4).toInt()
+            val thisDayOfMonth = Instant.now().atZone(ACTIVATION_TIMEZONE).dayOfMonth
+            if (activationDayOfMonth < thisDayOfMonth) {
+                return true
+            }
+            if (activationDayOfMonth > thisDayOfMonth) {
+                return false
+            }
+
             // Skal aktiveres idag, sjekk om tidspunktet er passert
             val activationHour = filename.substring(4, 6).toInt()
             val activationMinute = filename.substring(6, 8).toInt()

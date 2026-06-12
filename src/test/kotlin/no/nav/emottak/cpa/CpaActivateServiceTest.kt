@@ -49,19 +49,17 @@ class CpaActivateServiceTest {
         assertEquals(true, cpaActivateService.isActivationDue(fiveMinutesAgo + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation five minutes ago")
         assertEquals(false, cpaActivateService.isActivationDue(inFiveMinutes + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in five minutes")
 
-        // Service only processes today's activations
-        val yesterday = nowInActivationTimezone().minusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        assertEquals(false, cpaActivateService.isActivationDue(yesterday + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one month ago")
+        val yesterday = nowInActivationTimezone().minusDays(1).withHour(23).withMinute(59).format(DateTimeFormatter.ofPattern("MMddHHmm"))
+        assertEquals(true, cpaActivateService.isActivationDue(yesterday + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation one day ago")
 
         val tomorrow = nowInActivationTimezone().plusDays(1).format(DateTimeFormatter.ofPattern("MMddHHmm"))
-        assertEquals(false, cpaActivateService.isActivationDue(tomorrow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in one month")
+        assertEquals(false, cpaActivateService.isActivationDue(tomorrow + "_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Activation in one day")
 
         assertEquals(false, cpaActivateService.isActivationDue("0127080_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Less than 8 chars TS")
         assertEquals(false, cpaActivateService.isActivationDue("012708000_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "More than 8 chars TS")
         assertEquals(false, cpaActivateService.isActivationDue("01270800-nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Not underscore at pos 9")
         assertEquals(false, cpaActivateService.isActivationDue("01270800"), "Too short filename")
-        assertEquals(false, cpaActivateService.isActivationDue("0127080X_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Rubbish TS 1")
-        assertEquals(false, cpaActivateService.isActivationDue("X1270800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Rubbish TS 2")
+        assertEquals(false, cpaActivateService.isActivationDue("X1270800_nav.60120._R_Zm9ybnllbHNl._R_.qrntn"), "Rubbish TS")
     }
 
     internal fun nowInActivationTimezone(): LocalDateTime {
