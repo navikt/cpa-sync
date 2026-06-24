@@ -11,10 +11,9 @@ dependencyResolutionManagement {
 
     versionCatalogs {
         create("libs") {
-            version("ktor", "3.1.3")
+            version("ktor", "3.4.3")
             version("exposed", "0.47.0")
             version("token-validation-ktor", "5.0.15")
-            version("eclipse-angus", "2.0.2")
             version("jsch", "0.2.16")
             version("emottak-utils", "0.3.1")
 
@@ -36,7 +35,6 @@ dependencyResolutionManagement {
             library("logback-logstash", "net.logstash.logback:logstash-logback-encoder:8.1")
 
             library("emottak-utils", "no.nav.emottak", "emottak-utils").versionRef("emottak-utils")
-            library("ktor-server-auth-jvm", "io.ktor", "ktor-server-auth-jvm").versionRef("ktor")
             library("token-validation-ktor-v3", "no.nav.security", "token-validation-ktor-v3").versionRef("token-validation-ktor")
             library("hikari", "com.zaxxer:HikariCP:5.0.1")
             library("oracle", "com.oracle.database.jdbc:ojdbc8:23.26.1.0.0")
@@ -48,40 +46,13 @@ dependencyResolutionManagement {
 
         create("testLibs") {
             version("junit", "5.9.2")
-            version("hamcrest", "2.2")
             version("mockk", "1.13.10")
-            version("xmlunit", "2.9.1")
-            version("ktor-server-test", "3.0.3")
-            version("kotest", "5.9.1")
-            version("kotest-extensions", "2.0.2")
-            version("turbine", "1.2.0")
-            version("arrow", "2.0.1")
 
-            library("ktor-server-test-host", "io.ktor", "ktor-server-test-host").versionRef("ktor-server-test")
             library("junit-jupiter-api", "org.junit.jupiter", "junit-jupiter-api").versionRef("junit")
             library("junit-jupiter-engine", "org.junit.jupiter", "junit-jupiter-engine").versionRef("junit")
-            library("junit-jupiter-params", "org.junit.jupiter", "junit-jupiter-params").versionRef("junit")
-            library("mock-oauth2-server", "no.nav.security:mock-oauth2-server:2.1.2")
-
-            library("hamcrest", "org.hamcrest", "hamcrest").versionRef("hamcrest")
 
             library("mockk-jvm", "io.mockk", "mockk-jvm").versionRef("mockk")
             library("mockk-dsl-jvm", "io.mockk", "mockk-dsl-jvm").versionRef("mockk")
-
-            library("xmlunit-core", "org.xmlunit", "xmlunit-core").versionRef("xmlunit")
-            library("xmlunit-matchers", "org.xmlunit", "xmlunit-matchers").versionRef("xmlunit")
-
-            library("kotest-runner-junit5", "io.kotest", "kotest-runner-junit5").versionRef("kotest")
-            library("kotest-framework-datatest", "io.kotest", "kotest-framework-datatest").versionRef("kotest")
-            library("kotest-extensions-testcontainers", "io.kotest.extensions", "kotest-extensions-testcontainers").versionRef("kotest-extensions")
-
-            library("kotest-assertions-arrow", "io.kotest.extensions", "kotest-assertions-arrow").versionRef("arrow")
-
-            library("turbine", "app.cash.turbine", "turbine").versionRef("turbine")
-
-            bundle("kotest", listOf("kotest-runner-junit5", "kotest-framework-datatest"))
-            bundle("mockk", listOf("mockk-jvm", "mockk-dsl-jvm"))
-            bundle("xmlunit", listOf("xmlunit-core", "xmlunit-matchers"))
         }
     }
 
