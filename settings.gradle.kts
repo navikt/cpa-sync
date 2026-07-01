@@ -11,7 +11,7 @@ dependencyResolutionManagement {
 
     versionCatalogs {
         create("libs") {
-            version("ktor", "3.4.3")
+            version("ktor", "3.5.1")
             version("exposed", "0.47.0")
             version("token-validation-ktor", "5.0.15")
             version("jsch", "0.2.16")
