@@ -574,7 +574,7 @@ class CpaActivateServiceTest {
 
         val cpaId = cpaActivateService.cpaIdFromFilename(fileName)
         assertEquals(expectedCpaId, cpaId)
-        val result = cpaActivateService.changeCpaIdInFile(xmlWithQuarantinedCpaId, cpaId!!)
+        val result = cpaActivateService.changeCpaIdInFile(xmlWithQuarantinedCpaId, cpaId)
         assertEquals(expectedXml, result)
     }
 

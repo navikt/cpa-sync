@@ -11,11 +11,16 @@ dependencyResolutionManagement {
 
     versionCatalogs {
         create("libs") {
-            version("ktor", "3.4.3")
+            version("ktor", "3.5.1")
             version("exposed", "0.47.0")
-            version("token-validation-ktor", "5.0.15")
             version("jsch", "0.2.16")
-            version("emottak-utils", "0.3.1")
+            version("emottak-utils", "0.5.0")
+            version("micrometer-registry-prometheus", "1.12.4")
+            version("logback-classic", "1.5.37")
+            version("logback-logstash", "9.0")
+            version("nimbus-jose-jwt", "10.9.1")
+            version("hikari", "5.0.1")
+            version("oracle", "23.26.1.0.0")
 
             library("ktor-server-core", "io.ktor", "ktor-server-core").versionRef("ktor")
             library("ktor-server-netty", "io.ktor", "ktor-server-netty").versionRef("ktor")
@@ -29,15 +34,15 @@ dependencyResolutionManagement {
             library("ktor-client-auth", "io.ktor", "ktor-client-auth").versionRef("ktor")
 
             library("ktor-server-metrics-micrometer", "io.ktor", "ktor-server-metrics-micrometer").versionRef("ktor")
-            library("micrometer-registry-prometheus", "io.micrometer:micrometer-registry-prometheus:1.12.4")
+            library("micrometer-registry-prometheus", "io.micrometer", "micrometer-registry-prometheus").versionRef("micrometer-registry-prometheus")
 
-            library("logback-classic", "ch.qos.logback:logback-classic:1.5.18")
-            library("logback-logstash", "net.logstash.logback:logstash-logback-encoder:8.1")
+            library("logback-classic", "ch.qos.logback", "logback-classic").versionRef("logback-classic")
+            library("logback-logstash", "net.logstash.logback", "logstash-logback-encoder").versionRef("logback-logstash")
 
             library("emottak-utils", "no.nav.emottak", "emottak-utils").versionRef("emottak-utils")
-            library("token-validation-ktor-v3", "no.nav.security", "token-validation-ktor-v3").versionRef("token-validation-ktor")
-            library("hikari", "com.zaxxer:HikariCP:5.0.1")
-            library("oracle", "com.oracle.database.jdbc:ojdbc8:23.26.1.0.0")
+            library("nimbus-jose-jwt", "com.nimbusds", "nimbus-jose-jwt").versionRef("nimbus-jose-jwt")
+            library("hikari", "com.zaxxer", "HikariCP").versionRef("hikari")
+            library("oracle", "com.oracle.database.jdbc", "ojdbc8").versionRef("oracle")
 
             bundle("exposed", listOf("exposed-jdbc"))
             bundle("prometheus", listOf("ktor-server-metrics-micrometer", "micrometer-registry-prometheus"))
@@ -59,16 +64,8 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
         maven {
-            name = "Nav token-support"
-            url = uri("https://maven.pkg.github.com/navikt/token-support")
-            credentials {
-                username = "token"
-                password = System.getenv("GITHUB_TOKEN")
-            }
-        }
-        maven {
-            name = "Mock OAUTH2 server"
-            url = uri("https://maven.pkg.github.com/navikt/mock-oauth2-server")
+            name = "Nav emottak-utils"
+            url = uri("https://maven.pkg.github.com/navikt/emottak-utils")
             credentials {
                 username = "token"
                 password = System.getenv("GITHUB_TOKEN")
