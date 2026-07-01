@@ -31,8 +31,8 @@ dependencyResolutionManagement {
             library("ktor-server-metrics-micrometer", "io.ktor", "ktor-server-metrics-micrometer").versionRef("ktor")
             library("micrometer-registry-prometheus", "io.micrometer:micrometer-registry-prometheus:1.12.4")
 
-            library("logback-classic", "ch.qos.logback:logback-classic:1.5.18")
-            library("logback-logstash", "net.logstash.logback:logstash-logback-encoder:8.1")
+            library("logback-classic", "ch.qos.logback:logback-classic:1.5.37")
+            library("logback-logstash", "net.logstash.logback:logstash-logback-encoder:9.0")
 
             library("emottak-utils", "no.nav.emottak", "emottak-utils").versionRef("emottak-utils")
             library("token-validation-ktor-v3", "no.nav.security", "token-validation-ktor-v3").versionRef("token-validation-ktor")
