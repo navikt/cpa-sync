@@ -3,8 +3,8 @@ import org.gradle.kotlin.dsl.invoke
 
 plugins {
     application
-    kotlin("jvm") version "2.3.21"
-    kotlin("plugin.serialization") version "2.3.21"
+    kotlin("jvm") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.0"
     id("io.ktor.plugin") version "3.5.1"
     id("org.jlleitschuh.gradle.ktlint") version "11.6.1"
     id("org.jlleitschuh.gradle.ktlint-idea") version "11.6.1"
@@ -55,7 +55,7 @@ dependencies {
     implementation(libs.ktor.client.cio)
     implementation(libs.jsch)
     implementation(libs.ktor.client.auth)
-    implementation(libs.token.validation.ktor.v3)
+    implementation(libs.nimbus.jose.jwt)
     runtimeOnly("net.java.dev.jna:jna:5.12.1")
     testRuntimeOnly(testLibs.junit.jupiter.engine)
     testRuntimeOnly("com.h2database:h2:2.3.232")
