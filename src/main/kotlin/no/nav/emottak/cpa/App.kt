@@ -1,6 +1,5 @@
 package no.nav.emottak.cpa
 
-import dev.reformator.stacktracedecoroutinator.runtime.DecoroutinatorRuntime
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.serialization.kotlinx.json.json
@@ -34,11 +33,6 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(DelicateCoroutinesApi::class)
 fun main() {
-    // if (getEnvVar("NAIS_CLUSTER_NAME", "local") != "prod-fss") {
-    DecoroutinatorRuntime.load()
-    // }
-
-    val cpaRepoClient = getCpaRepoAuthenticatedClient()
     val emottakAdminClient = HttpClient(CIO)
     val activateCpaInterval = Duration.parse(getEnvVar("ACTIVATE_CPA_INTERVAL", "1h"))
     val syncCpaInterval = Duration.parse(getEnvVar("SYNC_CPA_INTERVAL", "5m"))

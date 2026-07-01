@@ -19,7 +19,7 @@ import no.nav.emottak.cpa.persistence.CpaArchiveRepository
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
-var TIMEOUT_EXCEPTION_COUNTER = AtomicInteger(0)
+val TIMEOUT_EXCEPTION_COUNTER = AtomicInteger(0)
 
 val doCpaSync: suspend () -> Result<Unit> =
     {

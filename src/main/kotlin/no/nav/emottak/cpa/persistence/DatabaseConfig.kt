@@ -2,11 +2,11 @@ package no.nav.emottak.cpa.persistence
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import kotlinx.datetime.TimeZone
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.time.ZoneId
 
 private val log = LoggerFactory.getLogger("no.nav.emottak.cpa.persistence.DatabaseConfig")
 
@@ -18,7 +18,7 @@ data class DatabaseConfig(
 
 fun configureCpaArchiveRepository(databaseConfig: DatabaseConfig): CpaArchiveRepository {
     // Når vi bruker CURRENT TIMESTAMP i inserts, fikk vi GMT-tid. Har prøvd å fikse det med å sette TZ i Dockerfile
-    log.info("Using timezone {}", TimeZone.currentSystemDefault().id)
+    log.info("Using timezone {}", ZoneId.systemDefault().id)
     val hikariConfig = HikariConfig().apply {
         jdbcUrl = databaseConfig.jdbcUrl
         driverClassName = "oracle.jdbc.OracleDriver"
