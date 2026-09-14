@@ -19,8 +19,9 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
             val dbCpaMap = cpaRepoClient.getCPATimestamps()
             val nfsCpaMap = getNfsCpaMap()
             if (nfsCpaMap.isNotEmpty()) {
-                upsertFreshCpa(nfsCpaMap, dbCpaMap)
-                deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
+                val upserted = upsertFreshCpa(nfsCpaMap, dbCpaMap)
+                val deleted = deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
+                log.info("Found ${nfsCpaMap.size} CPAs. Upserted $upserted CPAs and deleted $deleted stale CPAs.")
             } else {
                 log.warn("No CPAs found in NFS. This is odd.")
             }
@@ -90,16 +91,19 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         return byteStream.toByteArray()
     }
 
-    private suspend fun upsertFreshCpa(nfsCpaMap: Map<String, NfsCpa>, dbCpaMap: Map<String, String>) {
+    private suspend fun upsertFreshCpa(nfsCpaMap: Map<String, NfsCpa>, dbCpaMap: Map<String, String>): Int {
+        var upsertCount = 0
         nfsCpaMap.forEach { entry ->
             if (shouldUpsertCpa(entry.value.timestamp, dbCpaMap[entry.key])) {
                 log.info(Markers.append("cpaId", entry.key), "Upserting new/modified CPA: ${entry.key} - ${entry.value.timestamp}")
                 val unzippedCpaContent = unzipCpaContent(entry.value.content)
                 cpaRepoClient.putCPAinCPARepo(unzippedCpaContent, entry.value.timestamp)
+                upsertCount++
             } else {
                 log.debug("Skipping upsert for unmodified CPA: ${entry.key} - ${entry.value.timestamp}")
             }
         }
+        return upsertCount
     }
 
     internal fun unzipCpaContent(byteArray: ByteArray): String {
@@ -107,16 +111,16 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     }
 
     internal fun shouldUpsertCpa(nfsTimestamp: String, dbTimestamp: String?): Boolean {
-        if (dbTimestamp == null) return true
-        return Instant.parse(nfsTimestamp) > Instant.parse(dbTimestamp)
+        return dbTimestamp == null || Instant.parse(nfsTimestamp) > Instant.parse(dbTimestamp)
     }
 
-    private suspend fun deleteStaleCpa(nfsCpaIds: Set<String>, dbCpaMap: Map<String, String>) {
+    private suspend fun deleteStaleCpa(nfsCpaIds: Set<String>, dbCpaMap: Map<String, String>): Int {
         val staleCpa = dbCpaMap - nfsCpaIds
         staleCpa.forEach { entry ->
             log.info(Markers.append("cpaId", entry.key), "Deleting stale entry: ${entry.key} - ${entry.value}")
             cpaRepoClient.deleteCPAinCPARepo(entry.key)
         }
+        return staleCpa.size
     }
 
     internal fun logFailure(throwable: Throwable) {
