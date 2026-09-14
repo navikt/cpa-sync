@@ -100,7 +100,7 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
                 cpaRepoClient.putCPAinCPARepo(unzippedCpaContent, entry.value.timestamp)
                 upsertCount++
             } else {
-                log.debug("Skipping upsert for unmodified CPA: ${entry.key} - ${entry.value.timestamp}")
+                log.debug(Markers.append("cpaId", entry.key), "Skipping upsert for unmodified CPA: ${entry.key} - ${entry.value.timestamp}")
             }
         }
         return upsertCount
