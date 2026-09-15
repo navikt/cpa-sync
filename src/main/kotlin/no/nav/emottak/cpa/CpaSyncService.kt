@@ -34,8 +34,8 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         nfsConnector.use { connector ->
             return connector.folder().asSequence()
                 .filter { entry -> isXmlFileEntry(entry) }
-                .fold(mutableMapOf<String, NfsCpa>()) { accumulator, nfsCpaFile ->
-                    val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return accumulator
+                .fold(mutableMapOf()) { accumulator, nfsCpaFile ->
+                    val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return@fold accumulator
 
                     val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
                     require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
