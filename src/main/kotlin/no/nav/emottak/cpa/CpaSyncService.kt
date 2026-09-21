@@ -17,11 +17,10 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     suspend fun sync() {
         return runCatching {
             val dbCpaMap = cpaRepoClient.getCPATimestamps()
-            val nfsCpaMap = getNfsCpaMap()
-            if (nfsCpaMap.isNotEmpty()) {
-                val upserted = upsertFreshCpa(nfsCpaMap, dbCpaMap)
-                val deleted = deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
-                log.info("Found ${nfsCpaMap.size} CPAs. Upserted $upserted CPAs and deleted $deleted stale CPAs.")
+            val syncResult = syncNfsCpaStream(dbCpaMap)
+            if (syncResult.processedIds.isNotEmpty()) {
+                val deleted = deleteStaleCpa(syncResult.processedIds, dbCpaMap)
+                log.info("Found ${syncResult.processedIds.size} CPAs. Upserted ${syncResult.upsertCount} CPAs and deleted $deleted stale CPAs.")
             } else {
                 log.warn("No CPAs found in NFS. This is odd.")
             }
@@ -29,6 +28,42 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
             logFailure(it)
         }.getOrThrow()
     }
+
+    // Streams through NFS files one at a time (instead of loading all CPA contents into memory first) to keep
+    // peak memory usage low, since the NFS folder can contain a large number of CPAs.
+    private suspend fun syncNfsCpaStream(dbCpaMap: Map<String, String>): NfsSyncResult {
+        nfsConnector.use { connector ->
+            val processedIds = mutableSetOf<String>()
+            var upsertCount = 0
+
+            connector.folder().asSequence()
+                .filter { entry -> isXmlFileEntry(entry) }
+                .forEach { nfsCpaFile ->
+                    val timestamp = getLastModified(nfsCpaFile.attrs.mTime.toLong())
+                    val cpaContent = fetchNfsCpaContent(connector, nfsCpaFile)
+                    val cpaId = getCpaIdFromCpaContent(cpaContent)
+
+                    if (cpaId == null) {
+                        log.warn("Regex to find CPA ID in file ${nfsCpaFile.filename} did not find any match. File corrupted or wrongful regex.")
+                        return@forEach
+                    }
+
+                    require(processedIds.add(cpaId)) { "NFS contains duplicate CPA IDs. Aborting sync." }
+
+                    if (shouldUpsertCpa(timestamp, dbCpaMap[cpaId])) {
+                        log.info(Markers.append("cpaId", cpaId), "Upserting new/modified CPA: $cpaId - $timestamp")
+                        cpaRepoClient.putCPAinCPARepo(cpaContent, timestamp)
+                        upsertCount++
+                    } else {
+                        log.debug(Markers.append("cpaId", cpaId), "Skipping upsert for unmodified CPA: $cpaId - $timestamp")
+                    }
+                }
+
+            return NfsSyncResult(processedIds, upsertCount)
+        }
+    }
+
+    private data class NfsSyncResult(val processedIds: Set<String>, val upsertCount: Int)
 
     internal fun getNfsCpaMap(): Map<String, NfsCpa> {
         nfsConnector.use { connector ->
@@ -89,21 +124,6 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
             .bufferedWriter(StandardCharsets.UTF_8)
             .use { it.write(cpaContent) }
         return byteStream.toByteArray()
-    }
-
-    private suspend fun upsertFreshCpa(nfsCpaMap: Map<String, NfsCpa>, dbCpaMap: Map<String, String>): Int {
-        var upsertCount = 0
-        nfsCpaMap.forEach { entry ->
-            if (shouldUpsertCpa(entry.value.timestamp, dbCpaMap[entry.key])) {
-                log.info(Markers.append("cpaId", entry.key), "Upserting new/modified CPA: ${entry.key} - ${entry.value.timestamp}")
-                val unzippedCpaContent = unzipCpaContent(entry.value.content)
-                cpaRepoClient.putCPAinCPARepo(unzippedCpaContent, entry.value.timestamp)
-                upsertCount++
-            } else {
-                log.debug(Markers.append("cpaId", entry.key), "Skipping upsert for unmodified CPA: ${entry.key} - ${entry.value.timestamp}")
-            }
-        }
-        return upsertCount
     }
 
     internal fun unzipCpaContent(byteArray: ByteArray): String {
