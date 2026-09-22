@@ -376,6 +376,29 @@ class CpaSyncServiceTest {
         }
 
         assertTrue(exception.message!!.contains("NFS contains duplicate CPA IDs. Aborting sync."))
+        coVerify(exactly = 1) { mockCpaRepoClient.putCPAinCPARepo(any(), any()) }
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo(any()) }
+    }
+
+    @Test
+    fun `sync should not abort when a corrupt file shares an ID with a CPA declared by another file`() = runBlocking {
+        val lsEntries = listOf(
+            mockLsEntry("nav.qass.12345.xml", "2025-01-01T00:00:00Z"),
+            mockLsEntry("nav.qass.67890.xml", "2025-01-01T00:00:00Z")
+        )
+        val mockNfs: NFSConnector = mockk {
+            every { folder() } returns Vector<ChannelSftp.LsEntry>().apply { addAll(lsEntries) }
+            every { file("nav.qass.12345.xml") } answers { ByteArrayInputStream("<corrupt/>".toByteArray()) }
+            every { file("nav.qass.67890.xml") } answers { ByteArrayInputStream(simulateFileContent("nav:qass:12345").toByteArray()) }
+            every { close() } just Runs
+        }
+
+        mockCpaRepoFromMap(emptyMap())
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        coVerify(exactly = 1) { mockCpaRepoClient.putCPAinCPARepo(any(), any()) }
         coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo(any()) }
     }
 
