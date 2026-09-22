@@ -73,38 +73,21 @@ class CpaSyncServiceTest {
     }
 
     @Test
-    fun `should get cpaId from xml content`() = runBlocking {
+    fun `should get cpaId from filename`() = runBlocking {
         val lsEntry = mockLsEntry("nav.qass.12345.xml", "2025-01-01T00:00:00Z")
-        val mockNfs = mockNfsFromEntries(listOf(lsEntry), listOf("nav:qass:12345"))
 
-        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
-        val nfsCpa = cpaSyncService.getNfsCpa(mockNfs, lsEntry)
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNFSConnector)
+        val nfsCpa = cpaSyncService.getNfsCpa(lsEntry)
 
         assertEquals("nav:qass:12345", nfsCpa?.id)
     }
 
     @Test
-    fun `should find cpaId from an actual CPA file`() = runBlocking {
+    fun `should return null if filename does not end with xml`() = runBlocking {
         val lsEntry = mockLsEntry("nav.qass.12345.txt", "2025-01-01T00:00:00Z")
-        val mockNfs: NFSConnector = mockk {
-            every { folder() } returns Vector<ChannelSftp.LsEntry>().apply { add(lsEntry) }
-            every { file(any()) } returns File(ClassLoader.getSystemResource("cpa/nav.qass.12345.xml").file).inputStream()
-            every { close() } just Runs
-        }
 
-        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
-        val nfsCpa = cpaSyncService.getNfsCpa(mockNfs, lsEntry)
-
-        assertEquals("nav:qass:12345", nfsCpa?.id)
-    }
-
-    @Test
-    fun `should return null if cpa ID is not found`() = runBlocking {
-        val lsEntry = mockLsEntry("nav.qass.missing.txt", "2025-01-01T00:00:00Z")
-        val mockNfs = mockNfsFromEntries(listOf(lsEntry), listOf(""))
-
-        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
-        val cpa = cpaSyncService.getNfsCpa(mockNfs, lsEntry)
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNFSConnector)
+        val cpa = cpaSyncService.getNfsCpa(lsEntry)
 
         assertTrue(cpa == null)
     }
@@ -145,7 +128,7 @@ class CpaSyncServiceTest {
         val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
 
         val exception = assertThrows<IllegalArgumentException> {
-            cpaSyncService.getNfsCpaMap()
+            cpaSyncService.getNfsCpaMap(mockNfs)
         }
 
         assertTrue(exception.message!!.contains("NFS contains duplicate CPA IDs. Aborting sync."))
@@ -312,6 +295,68 @@ class CpaSyncServiceTest {
         coVerify(exactly = 0) {
             mockCpaRepoClient.deleteCPAinCPARepo(any())
         }
+    }
+
+    @Test
+    fun `sync should use cpa ID from file content when it differs from the filename`() = runBlocking {
+        val lsEntry = mockLsEntry("nav.qass.12345.xml", "2025-01-01T00:00:00Z")
+        val mockNfs = mockNfsFromEntries(listOf(lsEntry), listOf("nav:qass:99999"))
+
+        mockCpaRepoFromMap(mapOf("nav:qass:99999" to "2024-01-01T00:00:00Z"))
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        coVerify(exactly = 1) { mockCpaRepoClient.putCPAinCPARepo(any(), any()) }
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo(any()) }
+    }
+
+    @Test
+    fun `sync should not delete or upsert unmodified CPA whose filename differs from its content cpa ID`() = runBlocking {
+        val lsEntry = mockLsEntry("nav.qass.12345.xml", "2024-01-01T00:00:00Z")
+        val mockNfs = mockNfsFromEntries(listOf(lsEntry), listOf("nav:qass:99999"))
+
+        mockCpaRepoFromMap(mapOf("nav:qass:99999" to "2024-01-01T00:00:00Z"))
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        coVerify(exactly = 0) { mockCpaRepoClient.putCPAinCPARepo(any(), any()) }
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo(any()) }
+    }
+
+    @Test
+    fun `sync should not delete a CPA that is only provided by a file with a mismatching filename`() = runBlocking {
+        val lsEntry = mockLsEntry("nav.qass.12345.xml", "2024-01-01T00:00:00Z")
+        val mockNfs = mockNfsFromEntries(listOf(lsEntry), listOf("nav:qass:99999"))
+
+        mockCpaRepoFromMap(
+            mapOf(
+                "nav:qass:12345" to "2024-01-01T00:00:00Z",
+                "nav:qass:99999" to "2024-01-01T00:00:00Z"
+            )
+        )
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo("nav:qass:99999") }
+        coVerify(exactly = 1) { mockCpaRepoClient.deleteCPAinCPARepo("nav:qass:12345") }
+        coVerify(exactly = 0) { mockCpaRepoClient.putCPAinCPARepo(any(), any()) }
+    }
+
+    @Test
+    fun `sync should not read NFS content when nothing is modified and nothing is stale`() = runBlocking {
+        val nfsCpa = mapOf("nav:qass:12345" to "2024-01-01T00:00:00Z")
+        val dbCpa = mapOf("nav:qass:12345" to "2024-01-01T00:00:00Z")
+
+        val mockNfs = mockNfsFromMap(nfsCpa)
+        mockCpaRepoFromMap(dbCpa)
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        verify(exactly = 0) { mockNfs.file(any()) }
     }
 
     @Test

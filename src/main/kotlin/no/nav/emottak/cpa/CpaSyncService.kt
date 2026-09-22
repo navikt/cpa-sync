@@ -17,32 +17,108 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     suspend fun sync() {
         return runCatching {
             val dbCpaMap = cpaRepoClient.getCPATimestamps()
-            val nfsCpaMap = getNfsCpaMap()
-            if (nfsCpaMap.isNotEmpty()) {
-                val upserted = upsertFreshCpa(nfsCpaMap, dbCpaMap)
-                val deleted = deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
-                log.info("Found ${nfsCpaMap.size} CPAs. Upserted $upserted CPAs and deleted $deleted stale CPAs.")
-            } else {
-                log.warn("No CPAs found in NFS. This is odd.")
+
+            nfsConnector.use { connector ->
+                val nfsCpaMap = getNfsCpaMap(connector)
+                log.info("Found ${nfsCpaMap.size} CPAs in NFS. Found ${dbCpaMap.size} CPAs in DB.")
+
+                if (nfsCpaMap.isEmpty()) {
+                    log.warn("No CPAs found in NFS. This is odd.")
+                    return@use
+                }
+
+                var upserted = 0
+                val liveCpaIds = mutableSetOf<String>()
+                val unverifiedCpa = mutableListOf<NfsCpa>()
+
+                nfsCpaMap.forEach { entry ->
+                    if (syncCpa(connector, entry.key, entry.value, dbCpaMap, liveCpaIds, unverifiedCpa)) {
+                        upserted++
+                    }
+                }
+                log.info("Upserted $upserted new/modified CPAs.")
+
+                val deleted = deleteStaleCpa(connector, dbCpaMap, liveCpaIds, unverifiedCpa)
+                log.info("Deleted $deleted stale CPAs.")
+                log.info("Summary: Found ${nfsCpaMap.size} CPAs. Upserted $upserted CPAs and deleted $deleted stale CPAs.")
             }
         }.onFailure {
             logFailure(it)
         }.getOrThrow()
     }
 
-    internal fun getNfsCpaMap(): Map<String, NfsCpa> {
-        nfsConnector.use { connector ->
-            return connector.folder().asSequence()
-                .filter { entry -> isXmlFileEntry(entry) }
-                .fold(mutableMapOf()) { accumulator, nfsCpaFile ->
-                    val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return@fold accumulator
-
-                    val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
-                    require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
-
-                    accumulator
-                }
+    // Reads, checks and upserts a single CPA so that at most one CPA content is held in memory at a
+    // time, regardless of how many CPAs exist on NFS. Returns true if the CPA was upserted.
+    // CPAs that are skipped without reading their content are collected in unverifiedCpa, since
+    // their real cpaid is not known until the content has been read.
+    private suspend fun syncCpa(
+        connector: NFSConnector,
+        filenameCpaId: String,
+        nfsCpa: NfsCpa,
+        dbCpaMap: Map<String, String>,
+        liveCpaIds: MutableSet<String>,
+        unverifiedCpa: MutableList<NfsCpa>
+    ): Boolean {
+        if (!shouldUpsertCpa(nfsCpa.timestamp, dbCpaMap[filenameCpaId])) {
+            log.debug(Markers.append("cpaId", filenameCpaId), "Skipping upsert for unmodified CPA: $filenameCpaId - ${nfsCpa.timestamp}")
+            unverifiedCpa.add(nfsCpa)
+            return false
         }
+
+        log.info(Markers.append("cpaId", filenameCpaId), "Reading NFS content for new/modified CPA: $filenameCpaId - ${nfsCpa.timestamp}")
+        val cpaContent = fetchNfsCpaContent(connector, nfsCpa.filename)
+
+        // The CPA repo keys its entries on the cpaid inside the CPA itself, so the content is the
+        // authority on the ID. The filename is only used as a cheap pre-filter above.
+        val cpaId = verifyCpaId(cpaContent, nfsCpa)
+        if (cpaId == null) {
+            liveCpaIds.add(filenameCpaId)
+            return false
+        }
+        registerLiveCpaId(liveCpaIds, cpaId, nfsCpa.filename)
+
+        if (!shouldUpsertCpa(nfsCpa.timestamp, dbCpaMap[cpaId])) {
+            log.debug(Markers.append("cpaId", cpaId), "Skipping upsert for unmodified CPA: $cpaId - ${nfsCpa.timestamp}")
+            return false
+        }
+
+        log.info(Markers.append("cpaId", cpaId), "Upserting new/modified CPA: $cpaId - ${nfsCpa.timestamp}")
+        cpaRepoClient.putCPAinCPARepo(cpaContent, nfsCpa.timestamp)
+        return true
+    }
+
+    private fun verifyCpaId(cpaContent: String, nfsCpa: NfsCpa): String? {
+        val cpaId = getCpaIdFromCpaContent(cpaContent)
+        if (cpaId == null) {
+            log.warn("Regex to find CPA ID in file ${nfsCpa.filename} did not find any match. File corrupted or wrongful regex.")
+            return null
+        }
+        if (cpaId != nfsCpa.id) {
+            log.warn(
+                Markers.append("cpaId", cpaId),
+                "CPA ID in file ${nfsCpa.filename} is $cpaId, which does not match the ID derived from the filename (${nfsCpa.id}). Using the ID from the file content."
+            )
+        }
+        return cpaId
+    }
+
+    private fun registerLiveCpaId(liveCpaIds: MutableSet<String>, cpaId: String, filename: String) {
+        if (!liveCpaIds.add(cpaId)) {
+            log.warn(Markers.append("cpaId", cpaId), "NFS contains duplicate CPA ID $cpaId, last seen in file $filename.")
+        }
+    }
+
+    internal fun getNfsCpaMap(connector: NFSConnector): Map<String, NfsCpa> {
+        return connector.folder().asSequence()
+            .filter { entry -> isXmlFileEntry(entry) }
+            .fold(mutableMapOf()) { accumulator, nfsCpaFile ->
+                val nfsCpa = getNfsCpa(nfsCpaFile) ?: return@fold accumulator
+
+                val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
+                require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
+
+                accumulator
+            }
     }
 
     internal fun isXmlFileEntry(entry: ChannelSftp.LsEntry): Boolean {
@@ -53,23 +129,28 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         return false
     }
 
-    internal fun getNfsCpa(connector: NFSConnector, nfsCpaFile: ChannelSftp.LsEntry): NfsCpa? {
-        val timestamp = getLastModified(nfsCpaFile.attrs.mTime.toLong())
-        val cpaContent = fetchNfsCpaContent(connector, nfsCpaFile)
-        val cpaId = getCpaIdFromCpaContent(cpaContent)
+    internal fun getNfsCpa(nfsCpaFile: ChannelSftp.LsEntry): NfsCpa? {
+        val cpaId = getCpaIdFromFilename(nfsCpaFile.filename)
 
         if (cpaId == null) {
-            log.warn("Regex to find CPA ID in file ${nfsCpaFile.filename} did not find any match. File corrupted or wrongful regex.")
+            log.warn("Could not derive CPA ID from filename ${nfsCpaFile.filename}. Invalid filename format.")
             return null
         }
 
-        val zippedCpaContent = zipCpaContent(cpaContent)
+        val timestamp = getLastModified(nfsCpaFile.attrs.mTime.toLong())
 
-        return NfsCpa(cpaId, timestamp, zippedCpaContent)
+        return NfsCpa(cpaId, timestamp, nfsCpaFile.filename)
     }
 
-    private fun fetchNfsCpaContent(nfsConnector: NFSConnector, nfsCpaFile: ChannelSftp.LsEntry): String {
-        return nfsConnector.file("${nfsCpaFile.filename}").use {
+    internal fun getCpaIdFromFilename(filename: String): String? {
+        if (!filename.endsWith(".xml")) {
+            return null
+        }
+        return filename.removeSuffix(".xml").replace(".", ":").ifBlank { null }
+    }
+
+    private fun fetchNfsCpaContent(nfsConnector: NFSConnector, filename: String): String {
+        return nfsConnector.file(filename).use {
             String(it.readAllBytes())
         }
     }
@@ -91,21 +172,6 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         return byteStream.toByteArray()
     }
 
-    private suspend fun upsertFreshCpa(nfsCpaMap: Map<String, NfsCpa>, dbCpaMap: Map<String, String>): Int {
-        var upsertCount = 0
-        nfsCpaMap.forEach { entry ->
-            if (shouldUpsertCpa(entry.value.timestamp, dbCpaMap[entry.key])) {
-                log.info(Markers.append("cpaId", entry.key), "Upserting new/modified CPA: ${entry.key} - ${entry.value.timestamp}")
-                val unzippedCpaContent = unzipCpaContent(entry.value.content)
-                cpaRepoClient.putCPAinCPARepo(unzippedCpaContent, entry.value.timestamp)
-                upsertCount++
-            } else {
-                log.debug(Markers.append("cpaId", entry.key), "Skipping upsert for unmodified CPA: ${entry.key} - ${entry.value.timestamp}")
-            }
-        }
-        return upsertCount
-    }
-
     internal fun unzipCpaContent(byteArray: ByteArray): String {
         return GZIPInputStream(byteArray.inputStream()).bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
     }
@@ -114,8 +180,32 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         return dbTimestamp == null || Instant.parse(nfsTimestamp) > Instant.parse(dbTimestamp)
     }
 
-    private suspend fun deleteStaleCpa(nfsCpaIds: Set<String>, dbCpaMap: Map<String, String>): Int {
-        val staleCpa = dbCpaMap - nfsCpaIds
+    private suspend fun deleteStaleCpa(
+        connector: NFSConnector,
+        dbCpaMap: Map<String, String>,
+        liveCpaIds: MutableSet<String>,
+        unverifiedCpa: List<NfsCpa>
+    ): Int {
+        // CPAs skipped by the filename fast path never had their content read, so their filename ID
+        // is only a guess at the cpaid the CPA repo knows them by. Deleting based on that guess can
+        // remove a CPA that an NFS file still provides under a different ID, so confirm the real IDs
+        // before deleting anything. This only costs extra reads when something is about to be
+        // deleted, which is rare.
+        var staleCpa = dbCpaMap - (liveCpaIds + unverifiedCpa.map { it.id })
+        if (staleCpa.isNotEmpty()) {
+            log.info("Found ${staleCpa.size} CPAs to delete. Verifying CPA IDs of ${unverifiedCpa.size} unread NFS files first.")
+            unverifiedCpa.forEach { nfsCpa ->
+                val cpaContent = fetchNfsCpaContent(connector, nfsCpa.filename)
+                val cpaId = verifyCpaId(cpaContent, nfsCpa)
+                if (cpaId == null) {
+                    liveCpaIds.add(nfsCpa.id)
+                } else {
+                    registerLiveCpaId(liveCpaIds, cpaId, nfsCpa.filename)
+                }
+            }
+            staleCpa = dbCpaMap - liveCpaIds
+        }
+
         staleCpa.forEach { entry ->
             log.info(Markers.append("cpaId", entry.key), "Deleting stale entry: ${entry.key} - ${entry.value}")
             cpaRepoClient.deleteCPAinCPARepo(entry.key)
