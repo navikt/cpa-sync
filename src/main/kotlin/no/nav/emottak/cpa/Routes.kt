@@ -27,7 +27,7 @@ val doCpaSync: suspend () -> Result<Unit> =
             log.info("Starting CPA sync")
             val (result, duration) = measureTimeSuspended {
                 runCatching {
-                    CpaSyncService(getCpaRepoAuthenticatedClient(), NFSConnector())
+                    CpaSyncService(cpaRepoHttpClient, NFSConnector())
                         .sync()
                 }
             }
@@ -67,9 +67,8 @@ fun Route.activateCpa(cpaArchiveRepository: CpaArchiveRepository, emottakAdminCl
 }
 
 fun Route.testAzureAuthToCpaRepo(): Route = get("/testCpaRepoConnection") {
-    val cpaRepoClient = getCpaRepoAuthenticatedClient()
     call.respond(
-        cpaRepoClient.get("$URL_CPA_REPO_BASE/whoami").bodyAsText()
+        cpaRepoHttpClient.get("$URL_CPA_REPO_BASE/whoami").bodyAsText()
     )
 }
 
