@@ -14,14 +14,22 @@ import java.util.zip.GZIPOutputStream
 
 class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConnector: NFSConnector) {
 
+    companion object {
+        private const val NFS_PROGRESS_LOG_INTERVAL = 100
+    }
+
     suspend fun sync() {
         return runCatching {
             val dbCpaMap = cpaRepoClient.getCPATimestamps()
+            log.info("Found ${dbCpaMap.size} CPAs in CPA Repo.")
             val nfsCpaMap = getNfsCpaMap()
+            log.info("Found ${nfsCpaMap.size} CPAs in NFS cpaMap.")
             if (nfsCpaMap.isNotEmpty()) {
                 val upserted = upsertFreshCpa(nfsCpaMap, dbCpaMap)
+                log.info("Upserted $upserted new/modified CPAs.")
                 val deleted = deleteStaleCpa(nfsCpaMap.keys, dbCpaMap)
-                log.info("Found ${nfsCpaMap.size} CPAs. Upserted $upserted CPAs and deleted $deleted stale CPAs.")
+                log.info("Deleted $deleted stale CPAs.")
+                log.info("Summary: Found ${nfsCpaMap.size} CPAs. Upserted $upserted CPAs and deleted $deleted stale CPAs.")
             } else {
                 log.warn("No CPAs found in NFS. This is odd.")
             }
@@ -32,16 +40,23 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
 
     internal fun getNfsCpaMap(): Map<String, NfsCpa> {
         nfsConnector.use { connector ->
-            return connector.folder().asSequence()
-                .filter { entry -> isXmlFileEntry(entry) }
-                .fold(mutableMapOf()) { accumulator, nfsCpaFile ->
-                    val nfsCpa = getNfsCpa(connector, nfsCpaFile) ?: return@fold accumulator
+            val xmlFiles = connector.folder().filter { entry -> isXmlFileEntry(entry) }
+            log.info("Found ${xmlFiles.size} CPA files on NFS. Starting to read them.")
+            var processed = 0
 
-                    val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
-                    require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
-
-                    accumulator
+            return xmlFiles.fold(mutableMapOf()) { accumulator, nfsCpaFile ->
+                val nfsCpa = getNfsCpa(connector, nfsCpaFile)
+                processed++
+                if (processed % NFS_PROGRESS_LOG_INTERVAL == 0 || processed == xmlFiles.size) {
+                    log.info("Read $processed of ${xmlFiles.size} CPA files from NFS.")
                 }
+                if (nfsCpa == null) return@fold accumulator
+
+                val existingEntry = accumulator.put(nfsCpa.id, nfsCpa)
+                require(existingEntry == null) { "NFS contains duplicate CPA IDs. Aborting sync." }
+
+                accumulator
+            }
         }
     }
 
