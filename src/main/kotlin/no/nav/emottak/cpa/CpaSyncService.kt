@@ -16,9 +16,10 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
 
     suspend fun sync() {
         return runCatching {
-            val dbCpaMap = cpaRepoClient.getCPATimestamps()
-
+            // The connector is connected on construction, so it has to be closed even if fetching
+            // the CPA repo timestamps fails.
             nfsConnector.use { connector ->
+                val dbCpaMap = cpaRepoClient.getCPATimestamps()
                 val nfsCpaMap = getNfsCpaMap(connector)
                 log.info("Found ${nfsCpaMap.size} CPAs in NFS. Found ${dbCpaMap.size} CPAs in DB.")
 
@@ -59,7 +60,7 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         liveCpaIds: MutableSet<String>,
         unverifiedCpa: MutableList<NfsCpa>
     ): Boolean {
-        if (!shouldUpsertCpa(nfsCpa.timestamp, dbCpaMap[filenameCpaId])) {
+        if (isUnmodifiedCpa(nfsCpa.timestamp, dbCpaMap[filenameCpaId])) {
             log.debug(Markers.append("cpaId", filenameCpaId), "Skipping upsert for unmodified CPA: $filenameCpaId - ${nfsCpa.timestamp}")
             unverifiedCpa.add(nfsCpa)
             return false
@@ -69,7 +70,8 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
         val cpaContent = fetchNfsCpaContent(connector, nfsCpa.filename)
 
         // The CPA repo keys its entries on the cpaid inside the CPA itself, so the content is the
-        // authority on the ID. The filename is only used as a cheap pre-filter above.
+        // authority on the ID. The filename is only used as a cheap pre-filter above, and only
+        // when the repo timestamp confirms that the entry came from this very file.
         val cpaId = verifyCpaId(cpaContent, nfsCpa)
         if (cpaId == null) {
             liveCpaIds.add(filenameCpaId)
@@ -103,8 +105,10 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
     }
 
     private fun registerLiveCpaId(liveCpaIds: MutableSet<String>, cpaId: String, filename: String) {
-        if (!liveCpaIds.add(cpaId)) {
-            log.warn(Markers.append("cpaId", cpaId), "NFS contains duplicate CPA ID $cpaId, last seen in file $filename.")
+        // Two files declaring the same cpaid means the CPA repo content for that ID depends on the
+        // order NFS happens to list the files in, so stop instead of silently picking a winner.
+        require(liveCpaIds.add(cpaId)) {
+            "NFS contains duplicate CPA IDs. Aborting sync. CPA ID $cpaId is also declared by file $filename."
         }
     }
 
@@ -178,6 +182,13 @@ class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConne
 
     internal fun shouldUpsertCpa(nfsTimestamp: String, dbTimestamp: String?): Boolean {
         return dbTimestamp == null || Instant.parse(nfsTimestamp) > Instant.parse(dbTimestamp)
+    }
+
+    // Only an exact timestamp match proves that the CPA repo entry was created from this very file,
+    // since the NFS timestamp is stored verbatim on upsert. A repo entry that is merely newer may
+    // belong to a different file, so its CPA content has to be read and its cpaid verified.
+    internal fun isUnmodifiedCpa(nfsTimestamp: String, dbTimestamp: String?): Boolean {
+        return dbTimestamp != null && Instant.parse(nfsTimestamp) == Instant.parse(dbTimestamp)
     }
 
     private suspend fun deleteStaleCpa(

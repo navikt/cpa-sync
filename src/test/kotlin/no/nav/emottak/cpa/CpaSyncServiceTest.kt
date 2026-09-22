@@ -360,6 +360,57 @@ class CpaSyncServiceTest {
     }
 
     @Test
+    fun `sync should abort when two nfs files declare the same cpa ID in their content`() = runBlocking {
+        val lsEntries = listOf(
+            mockLsEntry("nav.qass.12345.xml", "2025-01-01T00:00:00Z"),
+            mockLsEntry("nav.qass.67890.xml", "2025-01-01T00:00:00Z")
+        )
+        val mockNfs = mockNfsFromEntries(lsEntries, listOf("nav:qass:99999", "nav:qass:99999"))
+
+        mockCpaRepoFromMap(emptyMap())
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+
+        val exception = assertFailsWith<IllegalArgumentException> {
+            cpaSyncService.sync()
+        }
+
+        assertTrue(exception.message!!.contains("NFS contains duplicate CPA IDs. Aborting sync."))
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo(any()) }
+    }
+
+    @Test
+    fun `sync should upsert mismatching CPA when the db timestamp does not come from the nfs file`() = runBlocking {
+        val lsEntry = mockLsEntry("nav.qass.12345.xml", "2024-01-01T00:00:00Z")
+        val mockNfs = mockNfsFromEntries(listOf(lsEntry), listOf("nav:qass:99999"))
+
+        mockCpaRepoFromMap(
+            mapOf(
+                "nav:qass:12345" to "2025-01-01T00:00:00Z",
+                "nav:qass:99999" to "2020-01-01T00:00:00Z"
+            )
+        )
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+        cpaSyncService.sync()
+
+        coVerify(exactly = 1) { mockCpaRepoClient.putCPAinCPARepo(any(), "2024-01-01T00:00:00Z") }
+        coVerify(exactly = 0) { mockCpaRepoClient.deleteCPAinCPARepo("nav:qass:99999") }
+    }
+
+    @Test
+    fun `sync should close the nfs connector when fetching db timestamps fails`() = runBlocking {
+        val mockNfs = mockNfsFromMap(emptyMap())
+        coEvery { mockCpaRepoClient.getCPATimestamps() } throws Exception("timeout")
+
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNfs)
+
+        assertFailsWith<Exception> { cpaSyncService.sync() }
+
+        verify(exactly = 1) { mockNfs.close() }
+    }
+
+    @Test
     fun `upsert check should return true if nfs timestamp is newer than db timestamp`() {
         val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNFSConnector)
 
@@ -367,6 +418,16 @@ class CpaSyncServiceTest {
         assertTrue { cpaSyncService.shouldUpsertCpa("2025-01-01T00:00:00Z", "2024-01-01T00:00:00Z") }
         assertFalse { cpaSyncService.shouldUpsertCpa("2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z") }
         assertFalse { cpaSyncService.shouldUpsertCpa("2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z") }
+    }
+
+    @Test
+    fun `unmodified check should only accept an exact timestamp match`() {
+        val cpaSyncService = CpaSyncService(mockCpaRepoClient, mockNFSConnector)
+
+        assertTrue { cpaSyncService.isUnmodifiedCpa("2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z") }
+        assertFalse { cpaSyncService.isUnmodifiedCpa("2024-01-01T00:00:00Z", null) }
+        assertFalse { cpaSyncService.isUnmodifiedCpa("2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z") }
+        assertFalse { cpaSyncService.isUnmodifiedCpa("2025-01-01T00:00:00Z", "2024-01-01T00:00:00Z") }
     }
 
     @Test
