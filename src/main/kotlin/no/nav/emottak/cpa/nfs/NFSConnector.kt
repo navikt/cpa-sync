@@ -23,6 +23,8 @@ class NFSConnector(
     private val port = getEnvVar("NFS_PORT", "22").toInt()
     private val outboundCpa = "/outbound/cpa"
     private val channelType = "sftp"
+    private val connectTimeoutMillis = getEnvVar("NFS_CONNECT_TIMEOUT_MILLIS", "30000").toInt()
+    private val socketTimeoutMillis = getEnvVar("NFS_SOCKET_TIMEOUT_MILLIS", "60000").toInt()
     private val jsch: JSch = jSch
     private val session: Session
     private val sftpChannel: ChannelSftp
@@ -33,10 +35,11 @@ class NFSConnector(
         jsch.addIdentity(privateKeyFile, publicKeyFile, passphrase.toByteArray())
         session = jsch.getSession(username, host, port)
         session.userInfo = DummyUserInfo()
-        session.connect()
+        session.timeout = socketTimeoutMillis
+        session.connect(connectTimeoutMillis)
 
         sftpChannel = session.openChannel(channelType) as ChannelSftp
-        sftpChannel.connect()
+        sftpChannel.connect(connectTimeoutMillis)
         sftpChannel.cd(outboundCpa)
     }
 
