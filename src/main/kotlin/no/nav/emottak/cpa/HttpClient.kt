@@ -41,14 +41,10 @@ val CPA_REPO_SCOPE = getEnvVar(
         ".team-emottak.cpa-repo/.default"
 )
 
-suspend fun getCpaRepoToken(): BearerTokens {
-    val requestBody =
-        "client_id=" + getEnvVar("AZURE_APP_CLIENT_ID", "cpa-repo") +
-            "&client_secret=" + getEnvVar("AZURE_APP_CLIENT_SECRET", "dummysecret") +
-            "&scope=" + CPA_REPO_SCOPE +
-            "&grant_type=client_credentials"
-
-    return HttpClient(CIO) {
+// Reused across all token refreshes instead of creating a new HttpClient (and thus a new connection pool
+// and selector-manager threads) for every single refresh, which would otherwise leak resources over time.
+private val tokenHttpClient: HttpClient by lazy {
+    HttpClient(CIO) {
         engine {
             val httpProxyUrl = getEnvVar("HTTP_PROXY", "")
             if (httpProxyUrl.isNotBlank()) {
@@ -58,7 +54,17 @@ suspend fun getCpaRepoToken(): BearerTokens {
                 )
             }
         }
-    }.post(
+    }
+}
+
+suspend fun getCpaRepoToken(): BearerTokens {
+    val requestBody =
+        "client_id=" + getEnvVar("AZURE_APP_CLIENT_ID", "cpa-repo") +
+            "&client_secret=" + getEnvVar("AZURE_APP_CLIENT_SECRET", "dummysecret") +
+            "&scope=" + CPA_REPO_SCOPE +
+            "&grant_type=client_credentials"
+
+    return tokenHttpClient.post(
         getEnvVar(
             "AZURE_OPENID_CONFIG_TOKEN_ENDPOINT",
             "http://localhost:3344/$AZURE_AD_AUTH/token"
@@ -79,8 +85,11 @@ suspend fun getCpaRepoToken(): BearerTokens {
         }
 }
 
-fun getCpaRepoAuthenticatedClient(): HttpClient {
-    return HttpClient(CIO) {
+// Single, long-lived client reused for all cpa-repo calls (sync cycles + routes) instead of creating a new
+// HttpClient (and thus a new connection pool and selector-manager threads) per call, which would otherwise
+// leak connections/threads against cpa-repo over time.
+val cpaRepoHttpClient: HttpClient by lazy {
+    HttpClient(CIO) {
         install(HttpTimeout) {
             this.requestTimeoutMillis = 60000
         }
