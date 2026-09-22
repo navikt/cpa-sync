@@ -19,6 +19,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.nav.emottak.cpa.nfs.NFSConnector
 import no.nav.emottak.cpa.persistence.CpaArchiveRepository
@@ -87,14 +89,11 @@ fun CoroutineScope.launchSyncCpa(
     startupDelay: Duration,
     processInterval: Duration
 ) {
-    timer(
-        name = "Sync CPA Timer",
-        initialDelay = startupDelay.inWholeMilliseconds,
-        period = processInterval.inWholeMilliseconds,
-        daemon = true
-    ) {
-        launch(Dispatchers.IO) {
+    launch(Dispatchers.IO) {
+        delay(startupDelay)
+        while (isActive) {
             doCpaSync()
+            delay(processInterval)
         }
     }
 }
