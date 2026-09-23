@@ -14,6 +14,10 @@ import java.util.zip.GZIPOutputStream
 
 class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConnector: NFSConnector) {
 
+    companion object {
+        private const val NFS_PROGRESS_LOG_INTERVAL = 100
+    }
+
     suspend fun sync() {
         return runCatching {
             // The connector is connected on construction, so it has to be closed even if fetching
