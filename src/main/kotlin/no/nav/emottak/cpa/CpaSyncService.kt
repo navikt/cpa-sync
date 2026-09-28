@@ -15,7 +15,7 @@ import java.util.zip.GZIPOutputStream
 class CpaSyncService(private val cpaRepoClient: HttpClient, private val nfsConnector: NFSConnector) {
 
     companion object {
-        private const val NFS_PROGRESS_LOG_INTERVAL = 100
+        private const val NFS_PROGRESS_LOG_INTERVAL = 1000
     }
 
     suspend fun sync() {
