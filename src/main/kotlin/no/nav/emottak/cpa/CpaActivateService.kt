@@ -17,7 +17,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
 
-data class NfsCpa(val id: String, val timestamp: String, val content: ByteArray)
+data class NfsCpa(val id: String, val timestamp: String, val filename: String)
 
 // En CPA som skal aktiveres ligger i en fil med filnavn som slutter på angitt suffix og starter med lokal dato og tid (MMddHHmm) for aktivering
 const val QUARANTINE_SUFFIX = ".qrntn"
