@@ -11,7 +11,7 @@ dependencyResolutionManagement {
 
     versionCatalogs {
         create("libs") {
-            version("ktor", "3.5.1")
+            version("ktor", "3.6.0")
             version("exposed", "0.47.0")
             version("jsch", "0.2.16")
             version("emottak-utils", "0.5.0")
