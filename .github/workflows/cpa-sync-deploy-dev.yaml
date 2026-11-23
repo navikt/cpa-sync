@@ -49,7 +49,7 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker build and push cpa-sync
-        uses: nais/docker-build-push@v0
+        uses: nais/docker-build-push@v1
         id: docker-push-cpa-sync
         with:
           team: team-emottak # required
